@@ -6,9 +6,12 @@ use std::net::TcpStream;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::convert::From;
+use std::ops::DerefMut;
+use std::ops::Deref;
 
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 
+#[derive(PartialEq)]
 pub enum MapiLanguage {
     Sql,
     Mapi,
@@ -17,7 +20,7 @@ pub enum MapiLanguage {
 
 pub struct MapiConnection {
     language: MapiLanguage,
-    socket: Box<Read>
+    socket: Box<Read>,
 }
 
 #[derive(Debug)]
@@ -64,15 +67,17 @@ impl MapiConnectionParams {
     }
 }
 
+const BLOCK: usize = (8*1024 - 2);
+
 impl MapiConnection {
-    pub fn connect(params: MapiConnectionParams) -> Result<MapiConnection, MapiError> {
+    pub fn new(params: MapiConnectionParams) -> Result<MapiConnection, MapiError> {
         let port = match params.port {
             Some(p) => p,
             None    => 50000
         };
 
         let mut socket = match params.unix_socket {
-            Some(p) => p,
+            Some(p) => format!("{}", p),
             None    => format!("/tmp/.s.monetdb.{}", port)
         };
 
@@ -101,20 +106,25 @@ impl MapiConnection {
                 Box::new(TcpStream::connect(h)?) as Box<Read>
             },
             None    => {
-                let mut sbuf  = [0; 1];
+                let sbuf  = [b'0'; 1];
                 let mut c = UnixStream::connect(socket)?;
                 // We need to send b'0' to initialize the connection
-                sbuf[0] = b'0';
-                c.write(&sbuf).unwrap();
+                if lang != MapiLanguage::Control {
+                    c.write(&sbuf).unwrap();
+                }
                 Box::new(c) as Box<Read>
             }
         };
 
+        // self.login(params)
         Ok(MapiConnection {
             socket: connection,
-            language: lang
+            language: lang,
         })
 
+    }
+
+    pub fn connect(&mut self) {
     }
 
     pub fn get_bytes(&mut self) -> Result<Bytes, MapiError> {
@@ -124,6 +134,24 @@ impl MapiConnection {
         println!("Read {} bytes", len);
         let b = Bytes::from(Vec::from(&buffer[0..len]));
         Ok(b)
+    }
+
+    fn login(&mut self, params: MapiConnectionParams) {
+        let mut buffer = BytesMut::with_capacity(BLOCK);
+        let len = self.get_block(&mut buffer);
+        let challenge = buffer.deref();
+    }
+
+    // fn challenge_response(&mut self,
+    //                       params: MapiConnectionParams,
+    //                       challenge: &[u8]) /*-> Result<Bytes, MapiError>*/ {
+    //    let (salt, identity, protocol, hashes, endian) =
+    // }
+
+    fn get_block(&mut self, buffer: &mut BytesMut) -> Result<usize, MapiError> {
+        //let mut buffer = [0; BLOCK];
+        let len: usize = self.socket.read(buffer.deref_mut())?;
+        Ok(len)
     }
 }
 
