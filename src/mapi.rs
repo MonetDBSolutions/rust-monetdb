@@ -1,5 +1,3 @@
-extern crate bytes;
-
 use std::io;
 use std::error::Error;
 use std::fmt;
@@ -8,6 +6,8 @@ use std::net::TcpStream;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::convert::From;
+
+use bytes::Bytes;
 
 pub enum MapiLanguage {
     Sql,
@@ -41,13 +41,13 @@ impl Error for MapiError {
 }
 
 pub struct MapiConnectionParams {
-    database:           String,
-    username:           Option<String>,
-    password:           Option<String>,
-    language:           Option<MapiLanguage>,
-    hostname:           Option<String>,
-    port:               Option<u32>,
-    unix_socket:        Option<String>,
+    pub database:           String,
+    pub username:           Option<String>,
+    pub password:           Option<String>,
+    pub language:           Option<MapiLanguage>,
+    pub hostname:           Option<String>,
+    pub port:               Option<u32>,
+    pub unix_socket:        Option<String>,
 }
 
 impl MapiConnectionParams {
@@ -114,14 +114,18 @@ impl MapiConnection {
 
     }
 
-    pub fn get_bytes(&mut self) -> Result<String, MapiError> {
+    pub fn get_bytes(&mut self) -> Result<Bytes, MapiError> {
         let mut buffer = [0; 1024];
 
         let len = self.socket.read(&mut buffer)?;
-        // TODO: change this
-        let s = String::from_utf8(Vec::from(&buffer[0..len])).unwrap();
-        Ok(s)
+        println!("Read {} bytes", len);
+        let b = Bytes::from(Vec::from(&buffer[0..len]));
+        Ok(b)
     }
+
+    // pub fn shutdown(&self, how: Shutdown) -> Result<(), io::Error> {
+    //     self.socket.shutdown(how);
+    // }
 }
 
 impl From<io::Error> for MapiError {
