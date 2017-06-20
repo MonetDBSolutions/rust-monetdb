@@ -98,12 +98,15 @@ impl MapiConnection {
 
         let connection = match hostname {
             Some(h) => {
-                println!("connecting to {}", h);
                 Box::new(TcpStream::connect(h)?) as Box<Read>
             },
             None    => {
-                println!("connecting to socket {}", socket.display());
-                Box::new(UnixStream::connect(socket)?) as Box<Read>
+                let mut sbuf  = [0; 1];
+                let mut c = UnixStream::connect(socket)?;
+                // We need to send b'0' to initialize the connection
+                sbuf[0] = b'0';
+                c.write(&sbuf).unwrap();
+                Box::new(c) as Box<Read>
             }
         };
 
@@ -122,10 +125,6 @@ impl MapiConnection {
         let b = Bytes::from(Vec::from(&buffer[0..len]));
         Ok(b)
     }
-
-    // pub fn shutdown(&self, how: Shutdown) -> Result<(), io::Error> {
-    //     self.socket.shutdown(how);
-    // }
 }
 
 impl From<io::Error> for MapiError {
