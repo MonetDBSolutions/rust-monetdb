@@ -6,10 +6,10 @@ use std::net::TcpStream;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::convert::From;
-use std::ops::DerefMut;
-use std::ops::Deref;
 
-use bytes::{Bytes, BytesMut};
+// use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
+use crypto_hash::{Algorithm, hex_digest};
 
 #[derive(PartialEq)]
 pub enum MapiLanguage {
@@ -18,29 +18,54 @@ pub enum MapiLanguage {
     Control
 }
 
-pub struct MapiConnection {
-    language: MapiLanguage,
-    socket: Box<Read>,
-}
-
-#[derive(Debug)]
-pub enum MapiError{
-    IOError(io::Error),
-}
-
-impl fmt::Display for MapiError {
+impl fmt::Display for MapiLanguage {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use mapi::MapiError::IOError;
         match *self {
-            IOError(ref e) => write!(f, "MapiError: {}", e)
+            MapiLanguage::Sql     => write!(f, "sql"),
+            MapiLanguage::Mapi    => write!(f, "mapi"),
+            MapiLanguage::Control => write!(f, "control")
         }
     }
 }
 
-impl Error for MapiError {
-    fn description(&self) -> &str {
-        "MapiError"
+pub enum MapiSocket {
+    TCP(TcpStream),
+    UNIX(UnixStream)
+}
+
+impl Read for MapiSocket {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match *self {
+            MapiSocket::TCP(ref mut s) => s.read(buf),
+            MapiSocket::UNIX(ref mut s) => s.read(buf)
+        }
     }
+}
+
+impl Write for MapiSocket {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match *self {
+            MapiSocket::TCP(ref mut s) => s.write(buf),
+            MapiSocket::UNIX(ref mut s) => s.write(buf)
+        }
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        match *self {
+            MapiSocket::TCP(ref mut s) => s.flush(),
+            MapiSocket::UNIX(ref mut s) => s.flush()
+        }
+    }
+}
+
+#[allow(dead_code)]
+pub struct MapiConnection {
+    hostname: String,
+    username: String,
+    password: String,
+    database: String,
+    port: u32,
+    language: MapiLanguage,
+    socket: MapiSocket
 }
 
 pub struct MapiConnectionParams {
@@ -70,7 +95,7 @@ impl MapiConnectionParams {
 const BLOCK: usize = (8*1024 - 2);
 
 impl MapiConnection {
-    pub fn new(params: MapiConnectionParams) -> Result<MapiConnection, MapiError> {
+    pub fn connect(params: MapiConnectionParams) -> Result<MapiConnection, MapiError> {
         let port = match params.port {
             Some(p) => p,
             None    => 50000
@@ -101,9 +126,9 @@ impl MapiConnection {
             None    => MapiLanguage::Sql
         };
 
-        let connection = match hostname {
+        let socket = match hostname.clone() {
             Some(h) => {
-                Box::new(TcpStream::connect(h)?) as Box<Read>
+                MapiSocket::TCP(TcpStream::connect(h)?)
             },
             None    => {
                 let sbuf  = [b'0'; 1];
@@ -112,19 +137,34 @@ impl MapiConnection {
                 if lang != MapiLanguage::Control {
                     c.write(&sbuf).unwrap();
                 }
-                Box::new(c) as Box<Read>
+                MapiSocket::UNIX(c)
+            }
+        };
+        let mut connection = MapiConnection {
+            socket: socket,
+            language: lang,
+            hostname: match hostname {
+                Some(val) => val,
+                None      => String::from("localhost")
+            },
+            username: match params.username {
+                Some(val) => val,
+                None      => String::from("monetdb")
+            },
+            password: match params.password {
+                Some(val) => val,
+                None      => String::from("monetdb")
+            },
+            database: params.database,
+            port: match params.port {
+                Some(val) => val,
+                None      => 50000
             }
         };
 
-        // self.login(params)
-        Ok(MapiConnection {
-            socket: connection,
-            language: lang,
-        })
+        connection.login();
 
-    }
-
-    pub fn connect(&mut self) {
+        Ok(connection)
     }
 
     pub fn get_bytes(&mut self) -> Result<Bytes, MapiError> {
@@ -136,22 +176,112 @@ impl MapiConnection {
         Ok(b)
     }
 
-    fn login(&mut self, params: MapiConnectionParams) {
-        let mut buffer = BytesMut::with_capacity(BLOCK);
-        let len = self.get_block(&mut buffer);
-        let challenge = buffer.deref();
+    fn login(&mut self) -> Result<(), MapiError> {
+        let challenge = self.get_block()?;
+        let response = self.challenge_response(&challenge)?;
+        self.put_block(response);
+
+        println!("get prompt");
+        let prompt = self.get_block()?;
+        println!("get prompt");
+
+        println!("{:?}", prompt);
+        Ok(())
     }
 
-    // fn challenge_response(&mut self,
-    //                       params: MapiConnectionParams,
-    //                       challenge: &[u8]) /*-> Result<Bytes, MapiError>*/ {
-    //    let (salt, identity, protocol, hashes, endian) =
-    // }
+    fn put_block(&mut self, message: Bytes) -> Result<(), MapiError> {
+        self.socket.write(message.as_ref());
+        Ok(())
+    }
+    fn challenge_response(&mut self, challenge: &Bytes) -> Result<Bytes, MapiError> {
+        let mut iter = challenge.split(|x| *x == b':');
 
-    fn get_block(&mut self, buffer: &mut BytesMut) -> Result<usize, MapiError> {
-        //let mut buffer = [0; BLOCK];
-        let len: usize = self.socket.read(buffer.deref_mut())?;
-        Ok(len)
+        let salt     = String::from_utf8_lossy(iter.next().unwrap());
+        let identity = String::from_utf8_lossy(iter.next().unwrap());
+        let protocol = String::from_utf8_lossy(iter.next().unwrap());
+        let hashes   = String::from_utf8_lossy(iter.next().unwrap());
+        let endian   = String::from_utf8_lossy(iter.next().unwrap());
+        let algo     = String::from_utf8_lossy(iter.next().unwrap());
+        let password = self.password.clone();
+
+        if protocol != "9" {
+            return Err(MapiError::ConnectionError(format!("Unsupported protocol version: {}", protocol)))
+        }
+
+        if identity != "mserver" && identity != "merovingian" {
+            return Err(MapiError::ConnectionError(format!("Unknown server type: {}", identity)))
+        }
+
+        let algorithm = self.get_encoding_algorithm(&*algo)?;
+
+        let hash_list: Vec<&str>= hashes.split_terminator(',').collect();
+        let hash_algo = self.get_hash_algorithm(hash_list)?;
+
+        let password = hex_digest(algorithm, self.password.as_bytes());
+        let hashed_passwd = hex_digest(hash_algo.1, format!("{}{}", password, salt).as_bytes());
+
+        let ret = format!("BIG:{}:{}{}:{}:{}", self.username, hash_algo.0, hashed_passwd, self.language, self.database);
+        println!("Response = {}", ret);
+
+        Ok(Bytes::from(ret))
+
+
+    }
+
+    fn get_encoding_algorithm(&self, algo: &str) -> Result<Algorithm, MapiError> {
+        if algo == "MD5" {
+            Ok(Algorithm::MD5)
+        } else if algo == "SHA1" {
+            Ok( Algorithm::SHA1 )
+        } else if algo == "SHA256" {
+            Ok( Algorithm::SHA256 )
+        } else if algo == "SHA512" {
+            Ok( Algorithm::SHA512 )
+        } else {
+            Err(MapiError::ConnectionError(format!("Server requested unsupported cryptographic algorithm {}", algo)))
+        }
+    }
+
+    fn get_hash_algorithm(&self, algs: Vec<&str>) -> Result<(String, Algorithm), MapiError> {
+        for hash in algs {
+            if hash == "SHA1" {
+                return Ok(("{SHA1}".to_string(), Algorithm::SHA1));
+            } else if hash == "MD5" {
+                return Ok(("{MD5}".to_string(), Algorithm::MD5));
+            } else {
+                ;
+            }
+        }
+        return Err(MapiError::ConnectionError("No supported hash algorithm found".to_string()));
+
+    }
+
+    fn get_block(&mut self) -> Result<Bytes, MapiError> {
+        let mut buffer = [0; BLOCK];
+        let len: usize = self.socket.read(&mut buffer)?;
+        Ok(Bytes::from(Vec::from(&buffer[0..len])))
+    }
+}
+
+#[derive(Debug)]
+pub enum MapiError{
+    IOError(io::Error),
+    ConnectionError(String)
+}
+
+impl fmt::Display for MapiError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use mapi::MapiError::*;
+        match *self {
+            IOError(ref e) => write!(f, "MapiError: {}", e),
+            ConnectionError(ref s) => write!(f, "MapiError: Connection error: {}", s)
+        }
+    }
+}
+
+impl Error for MapiError {
+    fn description(&self) -> &str {
+        "MapiError"
     }
 }
 

@@ -5,3 +5,4 @@ authors = ["Panagiotis Koutsourakis <kutsurak@monetdbsolutions.com>"]
 
 [dependencies]
 bytes = "0.4.4"
+crypto-hash = "0.3.0"
