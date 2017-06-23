@@ -9,8 +9,8 @@ use std::convert::From;
 
 // use bytes::{Bytes, BytesMut};
 use crypto_hash::{Algorithm, hex_digest};
-
 use errors::MapiError;
+
 #[derive(PartialEq)]
 pub enum MapiLanguage {
     Sql,
@@ -82,9 +82,29 @@ impl MapiConnectionParams {
     }
 }
 
+#[derive(Debug)]
+enum ServerResponsePrompt {
+    MsgPrompt,
+    MsgMore,
+    MsgInfo,
+    MsgError,
+    MsgQ,
+    MsgQTable,
+    MsgQUpdate,
+    MsgQSchema,
+    MsgQTrans,
+    MsgQPrepare,
+    MsgQBlock,
+    MsgHeader,
+    MsgTuple,
+    MsgTupleNoSclice,
+    MsgRedirect,
+    MsgOk
+}
+
 const BLOCK_SIZE: usize = (8*1024 - 2);
 
-#[allow(dead_code)]
+//#[allow(dead_code)]
 pub struct MapiConnection {
     hostname: String,
     username: String,
@@ -165,23 +185,104 @@ impl MapiConnection {
             }
         };
 
-        connection.login();
+        connection.login(0)?;
 
         Ok(connection)
     }
 
-    fn login(&mut self) -> Result<()> {
+    fn login(&mut self, iteration: u8) -> Result<()> {
+        use self::ServerResponsePrompt::*;
+
         let challenge = self.get_block()?;
         println!("Challenge: {}", String::from_utf8(challenge.to_vec()).unwrap());
         let response = self.challenge_response(&challenge)?;
-        self.put_block(response);
+        self.put_block(response)?;
 
-        println!("get prompt");
-        let prompt = self.get_block()?;
-        println!("get prompt");
+        let response = self.get_block()?;
+        let ( prompt, prompt_length ) = MapiConnection::parse_prompt(&response)?;
 
-        println!("{:?}", prompt);
-        Ok(())
+        match prompt {
+            MsgPrompt   => return Ok(()), // Server is happy
+            MsgOk       => return Ok(()), // Server is happy
+            MsgError    => return Err(MapiError::ConnectionError(format!("login: Server error: {}", String::from_utf8_lossy(response.slice_from(prompt_length as usize).as_ref())))),
+            MsgRedirect => {
+                let redirect = response.slice_from(prompt_length as usize);
+                let mut iter = redirect.split(|x| *x == b':');
+                let prot = String::from_utf8_lossy( iter.nth(1).unwrap() );
+                println!("prot = {}", prot);
+                if prot == "merovingian" {
+                    println!("Restarting authentication");
+                    return self.login(iteration + 1);
+                } else if prot == "monetdb" {
+                    return Err(MapiError::UnimplementedError("E03 (unimplemented redirect)".to_string()));
+                } else {
+                    return Err(MapiError::ConnectionError(format!( "Unknown redirect: {}", String::from_utf8_lossy(redirect.as_ref() ))));
+                }
+            },
+            _           => return Err(MapiError::UnknownServerResponse(format!("login: server responded with {:?} during login", prompt)))
+        }
+
+    }
+
+    fn parse_prompt(bytes: &Bytes) -> Result<(ServerResponsePrompt, u8)> {
+        use self::ServerResponsePrompt::*;
+        use bytes::{Buf, IntoBuf};
+
+        let mut buf = bytes.into_buf();
+
+        if buf.remaining() == 0 {
+            Ok((MsgPrompt, 0))
+        } else {
+            let initial_byte = buf.get_u8();
+            if initial_byte == b'#' {
+                Ok(( MsgInfo, 1 ))
+            } else if initial_byte == b'!' {
+                Ok(( MsgError, 1 ))
+            } else if initial_byte == b'%' {
+                Ok(( MsgHeader, 1 ))
+            } else if initial_byte == b'[' {
+                Ok(( MsgTuple, 1 ))
+            } else if initial_byte == b'^' {
+                Ok(( MsgRedirect, 1 ))
+            } else if initial_byte == 1 {
+                let byte = buf.get_u8();
+                if byte == 2 {
+                    let byte = buf.get_u8();
+                    if byte == b'\n' {
+                        Ok(( MsgMore, 3 ))
+                    } else {
+                        Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid More prompt: \\1\\2{}", byte)))
+                    }
+                } else {
+                    Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid More prompt: \\1{}", byte)))
+                }
+            } else if initial_byte == b'&' {
+                if buf.get_u8() == b'1' {
+                    Ok(( MsgQTable, 2 ))
+                } else if buf.get_u8() == b'2' {
+                    Ok(( MsgQUpdate, 2 ))
+                } else if buf.get_u8() == b'3' {
+                    Ok(( MsgQSchema, 2 ))
+                } else if buf.get_u8() == b'4' {
+                    Ok(( MsgQTrans, 2 ))
+                } else if buf.get_u8() == b'5' {
+                    Ok(( MsgQPrepare, 2 ))
+                } else if buf.get_u8() == b'6' {
+                    Ok(( MsgQBlock, 2 ))
+                } else {
+                    Ok(( MsgQ, 1 ))
+                }
+            } else if initial_byte == b'=' {
+                if buf.get_u8() == b'O' && buf.get_u8() == b'K' {
+                    Ok((MsgOk, 3))
+                } else {
+                    Ok((MsgTupleNoSclice, 1))
+                }
+            }
+            else {
+                Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid prompt: Byte[0] = {}", initial_byte)))
+            }
+        }
     }
 
     fn challenge_response(&mut self, challenge: &Bytes) -> Result<Bytes> {
@@ -191,7 +292,7 @@ impl MapiConnection {
         let identity = String::from_utf8_lossy(iter.next().unwrap());
         let protocol = String::from_utf8_lossy(iter.next().unwrap());
         let hashes   = String::from_utf8_lossy(iter.next().unwrap());
-        let endian   = String::from_utf8_lossy(iter.next().unwrap());
+        let _endian   = String::from_utf8_lossy(iter.next().unwrap());
         let algo     = String::from_utf8_lossy(iter.next().unwrap());
         let password = self.password.clone();
 
@@ -202,12 +303,6 @@ impl MapiConnection {
         if identity != "mserver" && identity != "merovingian" {
             return Err(MapiError::ConnectionError(format!("Unknown server type: {}", identity)))
         }
-
-        // if endian == "LIT" {
-        //     self.endian = LittleEndian;
-        // } else {
-        //     self.endian = BiGEndian;
-        // }
 
         let algorithm = self.get_encoding_algorithm(&*algo)?;
 

@@ -6,7 +6,8 @@ use std::error::Error;
 pub enum MapiError{
     IOError(std::io::Error),
     ConnectionError(String),
-    UnimplementedError(String)
+    UnimplementedError(String),
+    UnknownServerResponse(String)
 }
 
 impl fmt::Display for MapiError {
@@ -15,7 +16,8 @@ impl fmt::Display for MapiError {
         match *self {
             IOError(ref e) => write!(f, "MapiError: {}", e),
             ConnectionError(ref s) => write!(f, "MapiError: Connection error: {}", s),
-            UnimplementedError(ref s) => write!(f, "MapiError: Unimplemented functionality: {}", s)
+            UnimplementedError(ref s) => write!(f, "MapiError: Unimplemented functionality: {}", s),
+            UnknownServerResponse(ref s) => write!(f, "MapiError: Server sent something we don't understand: {}", s),
         }
     }
 }
