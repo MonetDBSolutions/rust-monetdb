@@ -375,16 +375,24 @@ impl MapiConnection {
     }
 
     fn get_hash_algorithm(&self, algs: Vec<&str>) -> Result<(String, Algorithm)> {
-        for hash in algs {
-            if hash == "SHA1" {
-                return Ok(("{SHA1}".to_string(), Algorithm::SHA1));
-            } else if hash == "MD5" {
-                return Ok(("{MD5}".to_string(), Algorithm::MD5));
-            } else {
-;
+        let ret = if algs.contains(&"SHA512") {
+            Some(("{SHA512}".to_string(), Algorithm::SHA512))
+        } else if algs.contains(&"SHA256") {
+            Some(("{SHA256}".to_string(), Algorithm::SHA256))
+        } else if algs.contains(&"SHA1") {
+            Some(("{SHA1}".to_string(), Algorithm::SHA1))
+        } else if algs.contains(&"MD5") {
+            Some(("{MD5}".to_string(), Algorithm::MD5))
+        } else {
+            None
+        };
+
+        match ret {
+            Some(algo) => Ok(algo),
+            None => {
+                Err(MapiError::ConnectionError("No supported hash algorithm found".to_string()))
             }
         }
-        return Err(MapiError::ConnectionError("No supported hash algorithm found".to_string()));
     }
 
     fn get_block(&mut self) -> Result<Bytes> {
