@@ -1,3 +1,12 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0.  If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright 1997 - July 2008 CWI, August 2008 - 2017 MonetDB B.V.
+//
+
+//! The implementation of the low level connection to MonetDB.
+
 use std::io;
 use std::result;
 use std::fmt;
@@ -5,106 +14,59 @@ use std::io::prelude::*;
 use std::net::TcpStream;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
-use std::convert::From;
 
-// use bytes::{Bytes, BytesMut};
 use crypto_hash::{Algorithm, hex_digest};
 use errors::MapiError;
 
+/// This enum specifies the different languages that the protocol can handle.
 #[derive(PartialEq)]
 pub enum MapiLanguage {
     Sql,
     Mapi,
-    Control
+    Control,
 }
 
 impl fmt::Display for MapiLanguage {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            MapiLanguage::Sql     => write!(f, "sql"),
-            MapiLanguage::Mapi    => write!(f, "mapi"),
-            MapiLanguage::Control => write!(f, "control")
+            MapiLanguage::Sql => write!(f, "sql"),
+            MapiLanguage::Mapi => write!(f, "mapi"),
+            MapiLanguage::Control => write!(f, "control"),
         }
     }
 }
 
-pub enum MapiSocket {
-    TCP(TcpStream),
-    UNIX(UnixStream)
-}
-
-impl Read for MapiSocket {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match *self {
-            MapiSocket::TCP(ref mut s) => s.read(buf),
-            MapiSocket::UNIX(ref mut s) => s.read(buf)
-        }
-    }
-}
-
-impl Write for MapiSocket {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        match *self {
-            MapiSocket::TCP(ref mut s) => s.write(buf),
-            MapiSocket::UNIX(ref mut s) => s.write(buf)
-        }
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        match *self {
-            MapiSocket::TCP(ref mut s) => s.flush(),
-            MapiSocket::UNIX(ref mut s) => s.flush()
-        }
-    }
-}
-
-
+/// The connection parameters for a mapi connection.
 pub struct MapiConnectionParams {
-    pub database:           String,
-    pub username:           Option<String>,
-    pub password:           Option<String>,
-    pub language:           Option<MapiLanguage>,
-    pub hostname:           Option<String>,
-    pub port:               Option<u32>,
-    pub unix_socket:        Option<String>,
+    pub database: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub language: Option<MapiLanguage>,
+    pub hostname: Option<String>,
+    pub port: Option<u32>,
+    pub unix_socket: Option<String>,
 }
 
 impl MapiConnectionParams {
+    /// Create a new set of connection parameters.
     pub fn new(database: &str) -> MapiConnectionParams {
         MapiConnectionParams {
-            database:           database.to_string(),
-            username:           Some(String::from("monetdb")),
-            password:           Some(String::from("monetdb")),
-            language:           Some(MapiLanguage::Sql),
-            hostname:           Some(String::from("localhost")),
-            port:               Some(50000),
-            unix_socket:        None
+            database: database.to_string(),
+            username: Some(String::from("monetdb")),
+            password: Some(String::from("monetdb")),
+            language: Some(MapiLanguage::Sql),
+            hostname: Some(String::from("localhost")),
+            port: Some(50000),
+            unix_socket: None,
         }
     }
 }
 
-#[derive(Debug)]
-enum ServerResponsePrompt {
-    MsgPrompt,
-    MsgMore,
-    MsgInfo,
-    MsgError,
-    MsgQ,
-    MsgQTable,
-    MsgQUpdate,
-    MsgQSchema,
-    MsgQTrans,
-    MsgQPrepare,
-    MsgQBlock,
-    MsgHeader,
-    MsgTuple,
-    MsgTupleNoSclice,
-    MsgRedirect,
-    MsgOk
-}
 
-const BLOCK_SIZE: usize = (8*1024 - 2);
+const BLOCK_SIZE: usize = (8 * 1024 - 2);
 
-//#[allow(dead_code)]
+/// Low level connection to MonetDB. This struct implements the mapi protocol version 9.
+#[allow(dead_code)]
 pub struct MapiConnection {
     hostname: String,
     username: String,
@@ -112,21 +74,24 @@ pub struct MapiConnection {
     database: String,
     port: u32,
     language: MapiLanguage,
-    socket: MapiSocket
+    socket: MapiSocket,
+    state: MapiConnectionState,
 }
+
 
 type Result<T> = result::Result<T, MapiError>;
 use bytes::Bytes;
 impl MapiConnection {
+    /// Establish a mapi connection given a set of connection params.
     pub fn connect(params: MapiConnectionParams) -> Result<MapiConnection> {
         let port = match params.port {
             Some(p) => p,
-            None    => 50000
+            None => 50000,
         };
 
         let mut socket = match params.unix_socket {
             Some(p) => format!("{}", p),
-            None    => format!("/tmp/.s.monetdb.{}", port)
+            None => format!("/tmp/.s.monetdb.{}", port),
         };
 
         let hostname = match params.hostname {
@@ -134,27 +99,24 @@ impl MapiConnection {
                 if h.starts_with("/") {
                     socket = format!("{}/.s.monetdb.{}", h, port);
                     None
-                }
-                else {
+                } else {
                     Some(format!("{}:{}", h, port))
                 }
             }
-            None    => Some(format!("localhost:{}", port))
+            None => Some(format!("localhost:{}", port)),
         };
 
         let socket = Path::new(&socket);
 
         let lang = match params.language {
             Some(l) => l,
-            None    => MapiLanguage::Sql
+            None => MapiLanguage::Sql,
         };
 
         let socket = match hostname.clone() {
-            Some(h) => {
-                MapiSocket::TCP(TcpStream::connect(h)?)
-            },
-            None    => {
-                let sbuf  = [b'0'; 1];
+            Some(h) => MapiSocket::TCP(TcpStream::connect(h)?),
+            None => {
+                let sbuf = [b'0'; 1];
                 let mut c = UnixStream::connect(socket)?;
                 // We need to send b'0' to initialize the connection
                 if lang != MapiLanguage::Control {
@@ -168,58 +130,122 @@ impl MapiConnection {
             language: lang,
             hostname: match hostname {
                 Some(val) => val,
-                None      => String::from("localhost")
+                None => String::from("localhost"),
             },
             username: match params.username {
                 Some(val) => val,
-                None      => String::from("monetdb")
+                None => String::from("monetdb"),
             },
             password: match params.password {
                 Some(val) => val,
-                None      => String::from("monetdb")
+                None => String::from("monetdb"),
             },
             database: params.database,
             port: match params.port {
                 Some(val) => val,
-                None      => 50000
-            }
+                None => 50000,
+            },
+            state: MapiConnectionState::StateInit,
         };
 
         connection.login(0)?;
+        connection.state = MapiConnectionState::StateReady;
 
         Ok(connection)
+    }
+
+    /// Send a command to the server
+    pub fn cmd(&mut self, operation: &str) -> Result<String> {
+        use self::ServerResponsePrompt::*;
+        match self.state {
+            MapiConnectionState::StateInit => {
+                return Err(MapiError::ConnectionError("Not connected".to_string()))
+            }
+            MapiConnectionState::StateReady => {
+                self.put_block(Bytes::from(operation))?;
+                let response = self.get_block()?;
+                let (prompt, prompt_length) = MapiConnection::parse_prompt(&response)?;
+
+                match prompt {
+                    MsgPrompt => return Ok("".to_string()),
+                    MsgOk => {
+                        let resp = format!("{}", String::from_utf8_lossy( response.slice_from(prompt_length as usize).as_ref() ));
+                        if resp.len() > 0 {
+                            return Ok(resp);
+                        }
+                        return Ok("".to_string());
+                    }
+                    MsgMore => return self.cmd(""),  // Tell the server it's not getting anything more from us
+                    MsgQ(p) => {
+                        match p {
+                            QResponse::QUpdate => {
+                                return Err(MapiError::UnimplementedError("E04 (cmd unimplemented \
+                                                                          QUpdate)"
+                                    .to_string()))
+                            }
+                            _ => {
+                                let resp = format!("{}",
+                                                   String::from_utf8_lossy(response.as_ref()));
+                                return Ok(resp);
+                            }
+
+                        }
+                    }
+                    MsgHeader => {
+                        let resp = format!("{}", String::from_utf8_lossy(response.as_ref()));
+                        return Ok(resp);
+                    }
+                    MsgTuple => {
+                        let resp = format!("{}", String::from_utf8_lossy(response.as_ref()));
+                        return Ok(resp);
+                    }
+
+                    _ => {
+                        return Err(MapiError::ConnectionError(format!("E05 (cmd unimplemented \
+                                                                       handling of: {:?})",
+                                                                      prompt)))
+                    }
+                }
+
+            }
+        }
     }
 
     fn login(&mut self, iteration: u8) -> Result<()> {
         use self::ServerResponsePrompt::*;
 
         let challenge = self.get_block()?;
-        println!("Challenge: {}", String::from_utf8(challenge.to_vec()).unwrap());
+        // println!("Challenge: {}", String::from_utf8(challenge.to_vec()).unwrap());
         let response = self.challenge_response(&challenge)?;
         self.put_block(response)?;
 
         let response = self.get_block()?;
-        let ( prompt, prompt_length ) = MapiConnection::parse_prompt(&response)?;
+        let (prompt, prompt_length) = MapiConnection::parse_prompt(&response)?;
 
         match prompt {
-            MsgPrompt   => return Ok(()), // Server is happy
-            MsgOk       => return Ok(()), // Server is happy
+            MsgPrompt => return Ok(()), // Server is happy
+            MsgOk => return Ok(()), // Server is happy
             MsgError    => return Err(MapiError::ConnectionError(format!("login: Server error: {}", String::from_utf8_lossy(response.slice_from(prompt_length as usize).as_ref())))),
             MsgRedirect => {
                 let redirect = response.slice_from(prompt_length as usize);
                 let mut iter = redirect.split(|x| *x == b':');
-                let prot = String::from_utf8_lossy( iter.nth(1).unwrap() );
-                println!("prot = {}", prot);
+                let prot = String::from_utf8_lossy(iter.nth(1).unwrap());
+                // println!("prot = {}", prot);
                 if prot == "merovingian" {
-                    println!("Restarting authentication");
+                    // println!("Restarting authentication");
                     return self.login(iteration + 1);
                 } else if prot == "monetdb" {
-                    return Err(MapiError::UnimplementedError("E03 (unimplemented redirect)".to_string()));
+                    return Err(MapiError::UnimplementedError("E03 (unimplemented redirect)"
+                        .to_string()));
                 } else {
                     return Err(MapiError::ConnectionError(format!( "Unknown redirect: {}", String::from_utf8_lossy(redirect.as_ref() ))));
                 }
-            },
-            _           => return Err(MapiError::UnknownServerResponse(format!("login: server responded with {:?} during login", prompt)))
+            }
+            _ => {
+                return Err(MapiError::UnknownServerResponse(format!("login: server responded \
+                                                                     with {:?} during login",
+                                                                    prompt)))
+            }
         }
 
     }
@@ -227,6 +253,7 @@ impl MapiConnection {
     fn parse_prompt(bytes: &Bytes) -> Result<(ServerResponsePrompt, u8)> {
         use self::ServerResponsePrompt::*;
         use bytes::{Buf, IntoBuf};
+        use self::QResponse::*;
 
         let mut buf = bytes.into_buf();
 
@@ -235,42 +262,48 @@ impl MapiConnection {
         } else {
             let initial_byte = buf.get_u8();
             if initial_byte == b'#' {
-                Ok(( MsgInfo, 1 ))
+                Ok((MsgInfo, 1))
             } else if initial_byte == b'!' {
-                Ok(( MsgError, 1 ))
+                Ok((MsgError, 1))
             } else if initial_byte == b'%' {
-                Ok(( MsgHeader, 1 ))
+                Ok((MsgHeader, 1))
             } else if initial_byte == b'[' {
-                Ok(( MsgTuple, 1 ))
+                Ok((MsgTuple, 1))
             } else if initial_byte == b'^' {
-                Ok(( MsgRedirect, 1 ))
+                Ok((MsgRedirect, 1))
             } else if initial_byte == 1 {
                 let byte = buf.get_u8();
                 if byte == 2 {
                     let byte = buf.get_u8();
                     if byte == b'\n' {
-                        Ok(( MsgMore, 3 ))
+                        Ok((MsgMore, 3))
                     } else {
-                        Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid More prompt: \\1\\2{}", byte)))
+                        Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid \
+                                                                      More prompt: \\1\\2{}",
+                                                                     byte)))
                     }
                 } else {
-                    Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid More prompt: \\1{}", byte)))
+                    Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid More \
+                                                                  prompt: \\1{}",
+                                                                 byte)))
                 }
             } else if initial_byte == b'&' {
-                if buf.get_u8() == b'1' {
-                    Ok(( MsgQTable, 2 ))
-                } else if buf.get_u8() == b'2' {
-                    Ok(( MsgQUpdate, 2 ))
-                } else if buf.get_u8() == b'3' {
-                    Ok(( MsgQSchema, 2 ))
-                } else if buf.get_u8() == b'4' {
-                    Ok(( MsgQTrans, 2 ))
-                } else if buf.get_u8() == b'5' {
-                    Ok(( MsgQPrepare, 2 ))
-                } else if buf.get_u8() == b'6' {
-                    Ok(( MsgQBlock, 2 ))
+                let byte = buf.get_u8();
+                if byte == b'1' {
+                    Ok((MsgQ(QTable), 2))
+                } else if byte == b'2' {
+                    Ok((MsgQ(QUpdate), 2))
+                } else if byte == b'3' {
+                    Ok((MsgQ(QSchema), 2))
+                } else if byte == b'4' {
+                    Ok((MsgQ(QTrans), 2))
+                } else if byte == b'5' {
+                    Ok((MsgQ(QPrepare), 2))
+                } else if byte == b'6' {
+                    Ok((MsgQ(QBlock), 2))
                 } else {
-                    Ok(( MsgQ, 1 ))
+                    Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid Q: &{}",
+                                                                 byte)))
                 }
             } else if initial_byte == b'=' {
                 if buf.get_u8() == b'O' && buf.get_u8() == b'K' {
@@ -278,9 +311,10 @@ impl MapiConnection {
                 } else {
                     Ok((MsgTupleNoSclice, 1))
                 }
-            }
-            else {
-                Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid prompt: Byte[0] = {}", initial_byte)))
+            } else {
+                Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid prompt: \
+                                                              Byte[0] = {}",
+                                                             initial_byte)))
             }
         }
     }
@@ -288,51 +322,55 @@ impl MapiConnection {
     fn challenge_response(&mut self, challenge: &Bytes) -> Result<Bytes> {
         let mut iter = challenge.split(|x| *x == b':');
 
-        let salt     = String::from_utf8_lossy(iter.next().unwrap());
+        let salt = String::from_utf8_lossy(iter.next().unwrap());
         let identity = String::from_utf8_lossy(iter.next().unwrap());
         let protocol = String::from_utf8_lossy(iter.next().unwrap());
-        let hashes   = String::from_utf8_lossy(iter.next().unwrap());
-        let _endian   = String::from_utf8_lossy(iter.next().unwrap());
-        let algo     = String::from_utf8_lossy(iter.next().unwrap());
+        let hashes = String::from_utf8_lossy(iter.next().unwrap());
+        let _endian = String::from_utf8_lossy(iter.next().unwrap());
+        let algo = String::from_utf8_lossy(iter.next().unwrap());
         let password = self.password.clone();
 
         if protocol != "9" {
-            return Err(MapiError::ConnectionError(format!("Unsupported protocol version: {}", protocol)))
+            return Err(MapiError::ConnectionError(format!("Unsupported protocol version: {}",
+                                                          protocol)));
         }
 
         if identity != "mserver" && identity != "merovingian" {
-            return Err(MapiError::ConnectionError(format!("Unknown server type: {}", identity)))
+            return Err(MapiError::ConnectionError(format!("Unknown server type: {}", identity)));
         }
 
         let algorithm = self.get_encoding_algorithm(&*algo)?;
 
-        let hash_list: Vec<&str>= hashes.split_terminator(',').collect();
+        let hash_list: Vec<&str> = hashes.split_terminator(',').collect();
         let hash_algo = self.get_hash_algorithm(hash_list)?;
 
         let password = hex_digest(algorithm, password.as_bytes());
         let hashed_passwd = hex_digest(hash_algo.1, format!("{}{}", password, salt).as_bytes());
 
-        let ret = format!("BIG:{}:{}{}:{}:{}:", self.username,
-                          hash_algo.0, hashed_passwd, self.language,
+        let ret = format!("BIG:{}:{}{}:{}:{}:",
+                          self.username,
+                          hash_algo.0,
+                          hashed_passwd,
+                          self.language,
                           self.database);
-        println!("Response = {}", ret);
+        // println!("Response = {}", ret);
 
         Ok(Bytes::from(ret))
-
-
     }
 
     fn get_encoding_algorithm(&self, algo: &str) -> Result<Algorithm> {
         if algo == "MD5" {
             Ok(Algorithm::MD5)
         } else if algo == "SHA1" {
-            Ok( Algorithm::SHA1 )
+            Ok(Algorithm::SHA1)
         } else if algo == "SHA256" {
-            Ok( Algorithm::SHA256 )
+            Ok(Algorithm::SHA256)
         } else if algo == "SHA512" {
-            Ok( Algorithm::SHA512 )
+            Ok(Algorithm::SHA512)
         } else {
-            Err(MapiError::ConnectionError(format!("Server requested unsupported cryptographic algorithm {}", algo)))
+            Err(MapiError::ConnectionError(format!("Server requested unsupported cryptographic \
+                                                    algorithm {}",
+                                                   algo)))
         }
     }
 
@@ -343,17 +381,18 @@ impl MapiConnection {
             } else if hash == "MD5" {
                 return Ok(("{MD5}".to_string(), Algorithm::MD5));
             } else {
-                ;
+;
             }
         }
         return Err(MapiError::ConnectionError("No supported hash algorithm found".to_string()));
-
     }
 
     fn get_block(&mut self) -> Result<Bytes> {
         use bytes::{LittleEndian, IntoBuf, Buf};
         let mut buff = vec![];
-        if self.language == MapiLanguage::Control /*  && local */{
+        if self.language == MapiLanguage::Control
+        // && local
+        {
             // TODO: implement local control
             return Err(MapiError::UnimplementedError("E01".to_string()));
         } else {
@@ -378,12 +417,15 @@ impl MapiConnection {
 
     fn put_block(&mut self, message: Bytes) -> Result<()> {
         use bytes::LittleEndian;
-        if self.language == MapiLanguage::Control /*  && local */ {
+        if self.language == MapiLanguage::Control
+        // && local
+        {
             // TODO: implement local control
-            return Err(MapiError::UnimplementedError("E02".to_string()));
+            return Err(MapiError::UnimplementedError("E02 (put_block local control language)"
+                .to_string()));
         } else {
             use bytes::BufMut;
-            let mut sl_start = 0;
+            let mut sl_start;
             let mut sl_end = 0;
             while sl_end + BLOCK_SIZE < message.len() {
                 sl_start = sl_end;
@@ -406,7 +448,6 @@ impl MapiConnection {
         }
         Ok(())
     }
-
 }
 
 fn get_bytes<R>(stream: R, limit: u64) -> Result<Vec<u8>>
@@ -419,7 +460,7 @@ fn get_bytes<R>(stream: R, limit: u64) -> Result<Vec<u8>>
         let mut cbuff = vec![];
         let recv = chunk.read_to_end(&mut cbuff)?;
         if recv == 0 {
-            return Err(MapiError::ConnectionError("Server closed the connection".to_string()))
+            return Err(MapiError::ConnectionError("Server closed the connection".to_string()));
         }
         count -= recv as u64;
         buff.append(&mut cbuff);
@@ -428,4 +469,60 @@ fn get_bytes<R>(stream: R, limit: u64) -> Result<Vec<u8>>
     Ok(buff)
 }
 
+enum MapiSocket {
+    TCP(TcpStream),
+    UNIX(UnixStream),
+}
 
+impl Read for MapiSocket {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match *self {
+            MapiSocket::TCP(ref mut s) => s.read(buf),
+            MapiSocket::UNIX(ref mut s) => s.read(buf),
+        }
+    }
+}
+
+impl Write for MapiSocket {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match *self {
+            MapiSocket::TCP(ref mut s) => s.write(buf),
+            MapiSocket::UNIX(ref mut s) => s.write(buf),
+        }
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        match *self {
+            MapiSocket::TCP(ref mut s) => s.flush(),
+            MapiSocket::UNIX(ref mut s) => s.flush(),
+        }
+    }
+}
+
+#[derive(Debug)]
+enum ServerResponsePrompt {
+    MsgPrompt,
+    MsgMore,
+    MsgInfo,
+    MsgError,
+    MsgQ(QResponse),
+    MsgHeader,
+    MsgTuple,
+    MsgTupleNoSclice,
+    MsgRedirect,
+    MsgOk,
+}
+
+#[derive(Debug)]
+enum QResponse {
+    QTable,
+    QUpdate,
+    QSchema,
+    QTrans,
+    QPrepare,
+    QBlock,
+}
+
+enum MapiConnectionState {
+    StateReady,
+    StateInit,
+}
