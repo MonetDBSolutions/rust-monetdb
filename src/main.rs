@@ -1,6 +1,6 @@
-extern crate rumonetdb;
+extern crate monetdb_rust;
 
-use rumonetdb::mapi::*;
+use monetdb_rust::mapi::*;
 
 fn main() {
 
@@ -8,7 +8,12 @@ fn main() {
     let dparams = MapiConnectionParams::new("marvin");
 
     let mut c1 = MapiConnection::connect(dparams).unwrap();
-    let res1 = c1.cmd("sSELECT * from _tables;").unwrap();
+    let res1 = c1.cmd("sINSERT INTO foo VALUES (1),('a');");
+    match res1 {
+        Ok(p)  => println!("Response = {}", p),
+        Err(e) => println!("Error = {}", e)
+    };
+    let res1 = c1.cmd("sSELECT * from foo;").unwrap();
     println!("Response = {}", res1);
     // let ds = c1.get_bytes().unwrap();
 

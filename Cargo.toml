@@ -1,5 +1,5 @@
 [package]
-name = "rumonetdb"
+name = "monetdb-rust"
 version = "0.1.0"
 authors = ["Panagiotis Koutsourakis <kutsurak@monetdbsolutions.com>"]
 
