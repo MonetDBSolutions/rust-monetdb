@@ -63,6 +63,8 @@ impl MapiConnectionParams {
 }
 
 
+// MAPI Protocol version 9: Server and client exchange information in blocks of
+// 8094 bytes.
 const BLOCK_SIZE: usize = (8 * 1024 - 2);
 
 /// Low level connection to MonetDB. This struct implements the mapi protocol version 9.
@@ -80,7 +82,6 @@ pub struct MapiConnection {
 
 
 type Result<T> = result::Result<T, MapiError>;
-use bytes::Bytes;
 impl MapiConnection {
     /// Establish a mapi connection given a set of connection params.
     pub fn connect(params: MapiConnectionParams) -> Result<MapiConnection> {
@@ -90,7 +91,7 @@ impl MapiConnection {
         };
 
         let mut socket = match params.unix_socket {
-            Some(p) => format!("{}", p),
+            Some(p) => p,
             None => format!("/tmp/.s.monetdb.{}", port),
         };
 
@@ -162,42 +163,40 @@ impl MapiConnection {
                 return Err(MapiError::ConnectionError("Not connected".to_string()))
             }
             MapiConnectionState::StateReady => {
-                self.put_block(Bytes::from(operation))?;
+                self.put_block(operation.as_bytes().to_vec())?;
                 let response = self.get_block()?;
                 let (prompt, prompt_length) = MapiConnection::parse_prompt(&response)?;
 
                 match prompt {
                     MsgPrompt => return Ok("".to_string()),
                     MsgOk => {
-                        let resp = format!("{}", String::from_utf8_lossy( response.slice_from(prompt_length as usize).as_ref() ));
-                        if resp.len() > 0 {
-                            return Ok(resp);
-                        }
-                        return Ok("".to_string());
+                        let resp = response.split_at(prompt_length).1;
+                        return Ok(String::from_utf8(resp.to_vec())?);
                     }
                     MsgMore => return self.cmd(""),  // Tell the server it's not getting anything more from us
                     MsgQ(p) => {
                         match p {
                             QResponse::QUpdate => {
+                                println!("{}", String::from_utf8(response)?);
                                 return Err(MapiError::UnimplementedError("E04 (cmd unimplemented \
                                                                           QUpdate)"
                                     .to_string()))
                             }
                             _ => {
-                                let resp = format!("{}",
-                                                   String::from_utf8_lossy(response.as_ref()));
-                                return Ok(resp);
+                                return Ok(String::from_utf8(response)?);
                             }
 
                         }
                     }
                     MsgHeader => {
-                        let resp = format!("{}", String::from_utf8_lossy(response.as_ref()));
-                        return Ok(resp);
+                        return Ok(String::from_utf8(response)?);
                     }
                     MsgTuple => {
-                        let resp = format!("{}", String::from_utf8_lossy(response.as_ref()));
-                        return Ok(resp);
+                        return Ok(String::from_utf8(response)?);
+                    }
+                    MsgError => {
+                        let er = String::from_utf8(response)?;
+                        return Err(MapiError::OperationError(er));
                     }
 
                     _ => {
@@ -215,19 +214,18 @@ impl MapiConnection {
         use self::ServerResponsePrompt::*;
 
         let challenge = self.get_block()?;
-        // println!("Challenge: {}", String::from_utf8(challenge.to_vec()).unwrap());
         let response = self.challenge_response(&challenge)?;
         self.put_block(response)?;
 
-        let response = self.get_block()?;
+        let mut response = self.get_block()?;
         let (prompt, prompt_length) = MapiConnection::parse_prompt(&response)?;
 
         match prompt {
             MsgPrompt => return Ok(()), // Server is happy
             MsgOk => return Ok(()), // Server is happy
-            MsgError    => return Err(MapiError::ConnectionError(format!("login: Server error: {}", String::from_utf8_lossy(response.slice_from(prompt_length as usize).as_ref())))),
+            MsgError    => return Err(MapiError::ConnectionError(format!("login: Server error: {}", String::from_utf8(response)?))),
             MsgRedirect => {
-                let redirect = response.slice_from(prompt_length as usize);
+                let redirect = response.split_off(prompt_length);
                 let mut iter = redirect.split(|x| *x == b':');
                 let prot = String::from_utf8_lossy(iter.nth(1).unwrap());
                 // println!("prot = {}", prot);
@@ -250,7 +248,7 @@ impl MapiConnection {
 
     }
 
-    fn parse_prompt(bytes: &Bytes) -> Result<(ServerResponsePrompt, u8)> {
+    fn parse_prompt(bytes: &Vec<u8>) -> Result<(ServerResponsePrompt, usize)> {
         use self::ServerResponsePrompt::*;
         use bytes::{Buf, IntoBuf};
         use self::QResponse::*;
@@ -319,14 +317,14 @@ impl MapiConnection {
         }
     }
 
-    fn challenge_response(&mut self, challenge: &Bytes) -> Result<Bytes> {
+    fn challenge_response(&mut self, challenge: &Vec<u8>) -> Result<Vec<u8>> {
         let mut iter = challenge.split(|x| *x == b':');
 
         let salt = String::from_utf8_lossy(iter.next().unwrap());
         let identity = String::from_utf8_lossy(iter.next().unwrap());
         let protocol = String::from_utf8_lossy(iter.next().unwrap());
         let hashes = String::from_utf8_lossy(iter.next().unwrap());
-        let _endian = String::from_utf8_lossy(iter.next().unwrap());
+        let _endianess = String::from_utf8_lossy(iter.next().unwrap()); // Unused for now
         let algo = String::from_utf8_lossy(iter.next().unwrap());
         let password = self.password.clone();
 
@@ -339,7 +337,7 @@ impl MapiConnection {
             return Err(MapiError::ConnectionError(format!("Unknown server type: {}", identity)));
         }
 
-        let algorithm = self.get_encoding_algorithm(&*algo)?;
+        let algorithm = self.get_encoding_algorithm(&algo[..])?;
 
         let hash_list: Vec<&str> = hashes.split_terminator(',').collect();
         let hash_algo = self.get_hash_algorithm(hash_list)?;
@@ -352,10 +350,9 @@ impl MapiConnection {
                           hash_algo.0,
                           hashed_passwd,
                           self.language,
-                          self.database);
-        // println!("Response = {}", ret);
+                          self.database).as_bytes().to_vec();
 
-        Ok(Bytes::from(ret))
+        Ok(ret)
     }
 
     fn get_encoding_algorithm(&self, algo: &str) -> Result<Algorithm> {
@@ -395,7 +392,7 @@ impl MapiConnection {
         }
     }
 
-    fn get_block(&mut self) -> Result<Bytes> {
+    fn get_block(&mut self) -> Result<Vec<u8>> {
         use bytes::{LittleEndian, IntoBuf, Buf};
         let mut buff = vec![];
         if self.language == MapiLanguage::Control
@@ -420,10 +417,10 @@ impl MapiConnection {
                 buff.append(&mut cbuff);
             }
         }
-        Ok(Bytes::from(buff))
+        Ok(buff)
     }
 
-    fn put_block(&mut self, message: Bytes) -> Result<()> {
+    fn put_block(&mut self, message: Vec<u8>) -> Result<()> {
         use bytes::LittleEndian;
         if self.language == MapiLanguage::Control
         // && local
@@ -438,7 +435,7 @@ impl MapiConnection {
             while sl_end + BLOCK_SIZE < message.len() {
                 sl_start = sl_end;
                 sl_end = sl_end + BLOCK_SIZE;
-                let slice = message.slice(sl_start, sl_end);
+                let slice = &message[sl_start..sl_end];
                 let mut header = vec![];
                 header.put_u16::<LittleEndian>((slice.len() << 1) as u16);
                 self.socket.write_all(header.as_slice())?;
@@ -447,7 +444,7 @@ impl MapiConnection {
 
             if message.len() - sl_end > 0 {
                 sl_start = sl_end;
-                let slice = message.slice_from(sl_start);
+                let slice = &message[sl_start..];
                 let mut header = vec![];
                 header.put_u16::<LittleEndian>(((slice.len() << 1) + 1) as u16);
                 self.socket.write_all(header.as_slice())?;
