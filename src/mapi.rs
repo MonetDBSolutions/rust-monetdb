@@ -178,7 +178,7 @@ impl MapiConnection {
                     MsgQ(p) => {
                         match p {
                             QResponse::QUpdate => {
-                                println!("{}", String::from_utf8(response)?);
+                                debug!("{}", String::from_utf8(response)?);
                                 return Err(MapiError::UnimplementedError("E04 (cmd unimplemented \
                                                                           QUpdate)"
                                     .to_string()));
@@ -232,9 +232,9 @@ impl MapiConnection {
                 let redirect = response.split_off(prompt_length);
                 let mut iter = redirect.split(|x| *x == b':');
                 let prot = String::from_utf8_lossy(iter.nth(1).unwrap());
-                // println!("prot = {}", prot);
+                debug!("prot = {}", prot);
                 if prot == "merovingian" {
-                    // println!("Restarting authentication");
+                    debug!("Restarting authentication");
                     return self.login(iteration + 1);
                 } else if prot == "monetdb" {
                     return Err(MapiError::UnimplementedError("E03 (unimplemented redirect)"

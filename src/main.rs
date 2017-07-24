@@ -5,15 +5,26 @@
 // Copyright 1997 - July 2008 CWI, August 2008 - 2017 MonetDB B.V.
 //
 extern crate monetdb_rust;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
 
-use monetdb_rust::mapi::*;
+use log::LogLevel;
+
+// use monetdb_rust::mapi::*;
+use monetdb_rust::*;
 
 fn main() {
+    env_logger::init().unwrap();
+    let c = Connection::connect("mapi://monetdb:monetdb@localhost:50000/marvin");
+    match c {
+        Ok(conn) => info!("Connection established"),
+        Err(e) => info!("Error: {}", e),
+    }
+    println!("Connecting to local merovignian using MAPI");
+    let dparams = mapi::MapiConnectionParams::new("marvin");
 
-    println!("Connecting to local merovignian");
-    let dparams = MapiConnectionParams::new("marvin");
-
-    let mut c1 = MapiConnection::connect(dparams).unwrap();
+    let mut c1 = mapi::MapiConnection::connect(dparams).unwrap();
     let res1 = c1.cmd("sINSERT INTO foo VALUES (1),('a');");
     match res1 {
         Ok(p) => println!("Response = {}", p),
