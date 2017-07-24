@@ -5,8 +5,8 @@
 // Copyright 1997 - July 2008 CWI, August 2008 - 2017 MonetDB B.V.
 //
 
-//! The implementation of the low level connection to MonetDB.
 
+//! The implementation of the low level connection to MonetDB.
 use std::io;
 use std::result;
 use std::fmt;
@@ -173,14 +173,15 @@ impl MapiConnection {
                         let resp = response.split_at(prompt_length).1;
                         return Ok(String::from_utf8(resp.to_vec())?);
                     }
-                    MsgMore => return self.cmd(""),  // Tell the server it's not getting anything more from us
+                    // Tell the server it's not getting anything more from us
+                    MsgMore => return self.cmd(""),
                     MsgQ(p) => {
                         match p {
                             QResponse::QUpdate => {
                                 println!("{}", String::from_utf8(response)?);
                                 return Err(MapiError::UnimplementedError("E04 (cmd unimplemented \
                                                                           QUpdate)"
-                                    .to_string()))
+                                    .to_string()));
                             }
                             _ => {
                                 return Ok(String::from_utf8(response)?);
@@ -223,7 +224,10 @@ impl MapiConnection {
         match prompt {
             MsgPrompt => return Ok(()), // Server is happy
             MsgOk => return Ok(()), // Server is happy
-            MsgError    => return Err(MapiError::ConnectionError(format!("login: Server error: {}", String::from_utf8(response)?))),
+            MsgError => {
+                return Err(MapiError::ConnectionError(format!("login: Server error: {}",
+                                                              String::from_utf8(response)?)))
+            }
             MsgRedirect => {
                 let redirect = response.split_off(prompt_length);
                 let mut iter = redirect.split(|x| *x == b':');
@@ -236,7 +240,8 @@ impl MapiConnection {
                     return Err(MapiError::UnimplementedError("E03 (unimplemented redirect)"
                         .to_string()));
                 } else {
-                    return Err(MapiError::ConnectionError(format!( "Unknown redirect: {}", String::from_utf8_lossy(redirect.as_ref() ))));
+                    return Err(MapiError::ConnectionError(format!( "Unknown redirect: {}",
+                                  String::from_utf8_lossy(redirect.as_ref() ))));
                 }
             }
             _ => {
@@ -350,7 +355,9 @@ impl MapiConnection {
                           hash_algo.0,
                           hashed_passwd,
                           self.language,
-                          self.database).as_bytes().to_vec();
+                          self.database)
+            .as_bytes()
+            .to_vec();
 
         Ok(ret)
     }
