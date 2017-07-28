@@ -43,20 +43,28 @@ pub struct MapiConnectionParams {
     pub password: Option<String>,
     pub language: Option<MapiLanguage>,
     pub hostname: Option<String>,
-    pub port: Option<u32>,
+    pub port: Option<u16>,
     pub unix_socket: Option<String>,
 }
 
 impl MapiConnectionParams {
     /// Create a new set of connection parameters.
-    pub fn new(database: &str) -> MapiConnectionParams {
+    pub fn new(database: &str, username: &str,
+               password: Option<&str>, language: Option<MapiLanguage>,
+               hostname: Option<&str>, port: Option<u16>) -> MapiConnectionParams {
         MapiConnectionParams {
             database: database.to_string(),
-            username: Some(String::from("monetdb")),
-            password: Some(String::from("monetdb")),
-            language: Some(MapiLanguage::Sql),
-            hostname: Some(String::from("localhost")),
-            port: Some(50000),
+            username: Some(
+                if username == ""
+                {
+                    String::from("monetdb")
+                } else {
+                    username.to_string()
+                }),
+            password: Some(password.unwrap_or("monetdb").to_string()),
+            language: Some(language.unwrap_or(MapiLanguage::Sql)),
+            hostname: Some(hostname.unwrap_or("localhost").to_string()),
+            port: Some(port.unwrap_or(50000)),
             unix_socket: None,
         }
     }
@@ -74,7 +82,7 @@ pub struct MapiConnection {
     username: String,
     password: String,
     database: String,
-    port: u32,
+    port: u16,
     language: MapiLanguage,
     socket: MapiSocket,
     state: MapiConnectionState,
@@ -85,10 +93,7 @@ type Result<T> = result::Result<T, MapiError>;
 impl MapiConnection {
     /// Establish a mapi connection given a set of connection params.
     pub fn connect(params: MapiConnectionParams) -> Result<MapiConnection> {
-        let port = match params.port {
-            Some(p) => p,
-            None => 50000,
-        };
+        let port = params.port.unwrap_or(50000);
 
         let mut socket = match params.unix_socket {
             Some(p) => p,
@@ -109,10 +114,7 @@ impl MapiConnection {
 
         let socket = Path::new(&socket);
 
-        let lang = match params.language {
-            Some(l) => l,
-            None => MapiLanguage::Sql,
-        };
+        let lang = params.language.unwrap_or(MapiLanguage::Sql);
 
         let socket = match hostname.clone() {
             Some(h) => MapiSocket::TCP(TcpStream::connect(h)?),
@@ -129,23 +131,11 @@ impl MapiConnection {
         let mut connection = MapiConnection {
             socket: socket,
             language: lang,
-            hostname: match hostname {
-                Some(val) => val,
-                None => String::from("localhost"),
-            },
-            username: match params.username {
-                Some(val) => val,
-                None => String::from("monetdb"),
-            },
-            password: match params.password {
-                Some(val) => val,
-                None => String::from("monetdb"),
-            },
+            hostname: hostname.unwrap_or(String::from("localhost")),
+            username: params.username.unwrap_or(String::from("monetdb")),
+            password: params.password.unwrap_or(String::from("monetdb")),
             database: params.database,
-            port: match params.port {
-                Some(val) => val,
-                None => 50000,
-            },
+            port: params.port.unwrap_or(50000),
             state: MapiConnectionState::StateInit,
         };
 
