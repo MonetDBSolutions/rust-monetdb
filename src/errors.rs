@@ -7,6 +7,7 @@
 use std;
 use std::fmt;
 use std::error::Error;
+use url;
 
 /// Definition for the low level errors that might occur when talking to a
 /// MonetDB server.
@@ -26,7 +27,7 @@ impl fmt::Display for MapiError {
         match *self {
             IOError(ref e) => write!(f, "MapiError: {}", e),
             ConnectionError(ref s) => write!(f, "MapiError: Connection error: {}", s),
-            UnimplementedError(ref s) => write!(f, "MapiError: Unimplemented functionality: {}", s),
+            UnimplementedError(ref s) => write!(f, "MapiError: Unimplemented MAPI functionality: {}", s),
             UnknownServerResponse(ref s) => {
                 write!(f,
                        "MapiError: Server sent something we don't understand: {}",
@@ -53,5 +54,41 @@ impl From<std::io::Error> for MapiError {
 impl From<std::string::FromUtf8Error> for MapiError {
     fn from(error: std::string::FromUtf8Error) -> Self {
         MapiError::ServerError(error)
+    }
+}
+
+#[derive(Debug)]
+pub enum MonetDBError {
+    InvalidUrl(url::ParseError),
+    UnimplementedError(String),
+    ConnectionError(MapiError),
+}
+
+impl fmt::Display for MonetDBError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::MonetDBError::*;
+        match *self {
+            InvalidUrl(ref e) => write!(f, "MonetDBError: {}", e),
+            ConnectionError(ref s) => write!(f, "MonetDBError: ConnectionError: {}", s),
+            UnimplementedError(ref s) => write!(f, "MonetDBError: Unimplemented SQL functionality: {}", s),
+        }
+    }
+}
+
+impl Error for MonetDBError {
+    fn description(&self) -> &str {
+        "MonetDBError"
+    }
+}
+
+impl From<url::ParseError> for MonetDBError {
+    fn from(error: url::ParseError) -> Self {
+        MonetDBError::InvalidUrl(error)
+    }
+}
+
+impl From<MapiError> for MonetDBError {
+    fn from(error: MapiError) -> Self {
+        MonetDBError::ConnectionError(error)
     }
 }
