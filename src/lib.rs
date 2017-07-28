@@ -16,9 +16,9 @@ use url::Url;
 pub mod mapi;
 pub mod errors;
 
-use errors::MapiError;
+use errors::MonetDBError;
 
-pub type Result<T> = result::Result<T, MapiError>;
+pub type Result<T> = result::Result<T, MonetDBError>;
 
 pub struct Connection {
     server_url: String,
@@ -27,7 +27,7 @@ pub struct Connection {
 
 impl Connection {
     pub fn connect(url: &str) -> Result<Connection> {
-        let parsed = Url::parse(url).unwrap();
+        let parsed = Url::parse(url)?;
         debug!("parsed url {} to", url);
         debug!("  scheme: {}", parsed.scheme());
         debug!("  username: {}", parsed.username());
@@ -36,8 +36,17 @@ impl Connection {
         debug!("  host: {:?}", parsed.port());
         debug!("  path: {:?}", parsed.path());
 
-
-
-        return Err(MapiError::ConnectionError("Place holder".to_string()))
+        // Remove the initial '/'
+        let db = parsed.path().get(1..).unwrap();
+        let mapi_params = mapi::MapiConnectionParams::new(db,
+                                                          parsed.username(),
+                                                          parsed.password(),
+                                                          Some( mapi::MapiLanguage::Sql ),
+                                                          parsed.host_str(),
+                                                          parsed.port());
+        Ok(Connection {
+            server_url: String::from(url),
+            connection: mapi::MapiConnection::connect(mapi_params)?
+        })
     }
 }
