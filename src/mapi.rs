@@ -169,10 +169,13 @@ impl MapiConnection {
                     MsgQ(p) => {
                         match p {
                             QResponse::QUpdate => {
-                                debug!("{}", String::from_utf8(response)?);
-                                return Err(MapiError::UnimplementedError("E04 (cmd unimplemented \
-                                                                          QUpdate)"
-                                    .to_string()));
+                                // TODO: find a way to remove this clone
+                                for line in String::from_utf8(response.clone())?.lines() {
+                                    if line.starts_with("!") {
+                                        return Err(MapiError::OperationError(line.to_string()));
+                                    }
+                                }
+                                return Ok(String::from_utf8(response)?);
                             }
                             _ => {
                                 return Ok(String::from_utf8(response)?);
