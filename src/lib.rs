@@ -20,10 +20,12 @@ use errors::MonetDBError;
 
 pub type Result<T> = result::Result<T, MonetDBError>;
 
+/// This implements the connection to a MonetDB database
 pub struct Connection {
     server_url: String,
     connection: mapi::MapiConnection
 }
+
 
 impl Connection {
     pub fn connect(url: &str) -> Result<Connection> {
@@ -48,5 +50,17 @@ impl Connection {
             server_url: String::from(url),
             connection: mapi::MapiConnection::connect(mapi_params)?
         })
+    }
+
+    pub fn get_mapi_connection(&mut self) -> &mut mapi::MapiConnection {
+        &mut self.connection
+    }
+
+    pub fn execute(&mut self, query: &str /*, params: &[&str]*/) -> Result<u64> {
+        let command = String::from("s") + query + "\n;";
+        let resp = self.connection.cmd(&command[..])?;
+
+        let insertions = resp.split_whitespace().nth(1).unwrap().parse::<u64>().unwrap();
+        Ok(insertions)
     }
 }

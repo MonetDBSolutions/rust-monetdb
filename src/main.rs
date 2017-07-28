@@ -17,11 +17,13 @@ use monetdb_rust::*;
 fn main() {
     env_logger::init().unwrap();
     // let c = Connection::connect("mapi://monetdb:monetdb@localhost:50000/marvin");
-    let c = Connection::connect("mapi://localhost:50000/marvin");
-    match c {
-        Ok(_) => info!("Connection established"),
-        Err(e) => info!("Error: {}", e),
-    }
+    let mut c = Connection::connect("mapi://localhost:50000/marvin").unwrap();
+    let res = c.execute("INSERT INTO foo VALUES (1), (a);").unwrap();
+    info!("Inserted {} values", res);
+    // let mut mc = c.get_mapi_connection();
+
+    // let res = mc.cmd("sINSERT INTO foo VALUES (1), (2);").unwrap();
+    // debug!("Response =\n{}", res);
     // debug!("Connecting to local merovignian using MAPI");
     // let dparams = mapi::MapiConnectionParams::new("marvin");
 
