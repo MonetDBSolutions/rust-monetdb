@@ -12,6 +12,7 @@ use std::result;
 use std::fmt;
 use std::io::prelude::*;
 use std::net::TcpStream;
+use std::net::Shutdown;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 
@@ -450,6 +451,13 @@ impl MapiConnection {
         }
         Ok(())
     }
+
+    pub fn close(&mut self) -> Result<()> {
+        match self.socket.shutdown(Shutdown::Both) {
+            Ok(()) => return Ok(()),
+            Err(e) => Err(MapiError::IOError(e))
+        }
+    }
 }
 
 fn get_bytes<R>(stream: R, limit: u64) -> Result<Vec<u8>>
@@ -496,6 +504,15 @@ impl Write for MapiSocket {
         match *self {
             MapiSocket::TCP(ref mut s) => s.flush(),
             MapiSocket::UNIX(ref mut s) => s.flush(),
+        }
+    }
+}
+
+impl MapiSocket {
+    pub fn shutdown(&self, how: Shutdown) -> io::Result<()> {
+        match *self {
+            MapiSocket::TCP(ref s) => s.shutdown(how),
+            MapiSocket::UNIX(ref s) => s.shutdown(how),
         }
     }
 }
