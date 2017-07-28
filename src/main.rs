@@ -16,22 +16,23 @@ use monetdb_rust::*;
 
 fn main() {
     env_logger::init().unwrap();
-    let c = Connection::connect("mapi://monetdb:monetdb@localhost:50000/marvin");
+    // let c = Connection::connect("mapi://monetdb:monetdb@localhost:50000/marvin");
+    let c = Connection::connect("mapi://localhost:50000/marvin");
     match c {
-        Ok(conn) => info!("Connection established"),
+        Ok(_) => info!("Connection established"),
         Err(e) => info!("Error: {}", e),
     }
-    println!("Connecting to local merovignian using MAPI");
-    let dparams = mapi::MapiConnectionParams::new("marvin");
+    // debug!("Connecting to local merovignian using MAPI");
+    // let dparams = mapi::MapiConnectionParams::new("marvin");
 
-    let mut c1 = mapi::MapiConnection::connect(dparams).unwrap();
-    let res1 = c1.cmd("sINSERT INTO foo VALUES (1),('a');");
-    match res1 {
-        Ok(p) => println!("Response = {}", p),
-        Err(e) => println!("Error = {}", e),
-    };
-    let res1 = c1.cmd("sSELECT * from foo;").unwrap();
-    println!("Response = {}", res1);
+    // let mut c1 = mapi::MapiConnection::connect(dparams).unwrap();
+    // let res1 = c1.cmd("sINSERT INTO foo VALUES (1),('a');");
+    // match res1 {
+    //     Ok(p) => debug!("Response = {}", p),
+    //     Err(e) => debug!("Error = {}", e),
+    // };
+    // let res1 = c1.cmd("sSELECT * from foo;").unwrap();
+    // debug!("Response =\n{}", res1);
     // let ds = c1.get_bytes().unwrap();
 
     // println!("Daemon sent: {:?}", ds);
