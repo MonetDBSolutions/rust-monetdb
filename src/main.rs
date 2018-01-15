@@ -18,7 +18,8 @@ fn main() {
     env_logger::init().unwrap();
     // let c = Connection::connect("mapi://monetdb:monetdb@localhost:50000/marvin");
     let mut c = Connection::connect("mapi://localhost:50000/marvin").unwrap();
-    let res = c.execute("INSERT INTO foo VALUES (1), (a);").unwrap();
+    // let res = c.execute("INSERT INTO foo VALUES (1), (2);").unwrap();
+    let res = c.execute("SELECT * from foo").unwrap();
     info!("Inserted {} values", res);
     // let mut mc = c.get_mapi_connection();
 
