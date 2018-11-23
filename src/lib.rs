@@ -16,7 +16,7 @@ use url::Url;
 pub mod mapi;
 pub mod errors;
 
-use errors::MonetDBError;
+use crate::errors::MonetDBError;
 
 pub type Result<T> = result::Result<T, MonetDBError>;
 

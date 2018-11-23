@@ -17,7 +17,7 @@ use std::os::unix::net::UnixStream;
 use std::path::Path;
 
 use crypto_hash::{Algorithm, hex_digest};
-use errors::MapiError;
+use crate::errors::MapiError;
 
 /// This enum specifies the different languages that the protocol can handle.
 #[derive(PartialEq)]
