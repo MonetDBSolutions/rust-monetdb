@@ -380,7 +380,7 @@ impl MapiConnection {
     }
 
     fn get_block(&mut self) -> Result<Vec<u8>> {
-        use bytes::{IntoBuf, Buf};
+        use bytes::{LittleEndian, IntoBuf, Buf};
         let mut buff = vec![];
         if self.language == MapiLanguage::Control
         // && local
@@ -395,7 +395,7 @@ impl MapiConnection {
                 // the message then the LSB of the header is set.
 
                 // TODO: Need to control the endianess based on what the server sent
-                let header = get_bytes(&mut self.socket, 2)?.into_buf().get_u16_le();
+                let header = get_bytes(&mut self.socket, 2)?.into_buf().get_u16::<LittleEndian>();
                 let length = header >> 1;
                 if header & 1 == 1 {
                     last = true;
@@ -408,6 +408,7 @@ impl MapiConnection {
     }
 
     fn put_block(&mut self, message: Vec<u8>) -> Result<()> {
+        use bytes::LittleEndian;
         if self.language == MapiLanguage::Control
         // && local
         {
@@ -422,7 +423,7 @@ impl MapiConnection {
                 sl_end = sl_end + BLOCK_SIZE;
                 let slice = &message[sl_start..sl_end];
                 let mut header = vec![];
-                header.put_u16_le((slice.len() << 1) as u16);
+                header.put_u16::<LittleEndian>((slice.len() << 1) as u16);
                 self.socket.write_all(header.as_slice())?;
                 self.socket.write_all(slice.as_ref())?;
             }
@@ -431,7 +432,7 @@ impl MapiConnection {
                 sl_start = sl_end;
                 let slice = &message[sl_start..];
                 let mut header = vec![];
-                header.put_u16_le(((slice.len() << 1) + 1) as u16);
+                header.put_u16::<LittleEndian>(((slice.len() << 1) + 1) as u16);
                 self.socket.write_all(header.as_slice())?;
                 self.socket.write_all(slice.as_ref())?;
             }
