@@ -205,9 +205,11 @@ impl MapiConnection {
     }
 
     fn login(&mut self, iteration: u8) -> Result<()> {
+        debug!("Starting login dance");
         use self::ServerResponsePrompt::*;
 
         let challenge = self.get_block()?;
+        debug!("Server sent: {}", String::from_utf8(challenge.clone())?);
         let response = self.challenge_response(&challenge)?;
         self.put_block(response)?;
 
@@ -445,7 +447,7 @@ impl MapiConnection {
     }
 }
 
-fn get_bytes<R>(stream: R, limit: u64) -> Result<Vec<u8>>
+pub fn get_bytes<R>(stream: R, limit: u64) -> Result<Vec<u8>>
     where R: Read
 {
     let mut buff = vec![];
