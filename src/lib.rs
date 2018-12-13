@@ -60,6 +60,8 @@ impl Connection {
         let command = String::from("s") + query + "\n;";
         let resp = self.connection.cmd(&command[..])?;
 
+        debug!("Query:\n{}\nResponse:\n{}", query, resp);
+
         let insertions = resp.split_whitespace().nth(1).unwrap().parse::<u64>().unwrap();
         Ok(insertions)
     }
