@@ -2,7 +2,7 @@
 // License, v. 2.0.  If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright 1997 - July 2008 CWI, August 2008 - 2017 MonetDB B.V.
+// Copyright 1997 - July 2008 CWI, August 2008 - 2018 MonetDB B.V.
 //
 
 
@@ -195,8 +195,7 @@ impl MapiConnection {
                     }
 
                     _ => {
-                        return Err(MapiError::ConnectionError(format!("E05 (cmd unimplemented \
-                                                                       handling of: {:?})",
+                        return Err(MapiError::ConnectionError(format!("E05 (cmd unimplemented handling of: {:?})",
                                                                       prompt)))
                     }
                 }
@@ -219,8 +218,7 @@ impl MapiConnection {
             MsgPrompt => return Ok(()), // Server is happy
             MsgOk => return Ok(()), // Server is happy
             MsgError => {
-                return Err(MapiError::ConnectionError(format!("login: Server error: {}",
-                                                              String::from_utf8(response)?)))
+                return Err(MapiError::ConnectionError(format!("login: Server error: {}", String::from_utf8(response)?)))
             }
             MsgRedirect => {
                 let redirect = response.split_off(prompt_length);
@@ -231,17 +229,13 @@ impl MapiConnection {
                     debug!("Restarting authentication");
                     return self.login(iteration + 1);
                 } else if prot == "monetdb" {
-                    return Err(MapiError::UnimplementedError("E03 (unimplemented redirect)"
-                        .to_string()));
+                    return Err(MapiError::UnimplementedError("E03 (unimplemented redirect)".to_string()));
                 } else {
-                    return Err(MapiError::ConnectionError(format!( "Unknown redirect: {}",
-                                  String::from_utf8_lossy(redirect.as_ref() ))));
+                    return Err(MapiError::ConnectionError(format!( "Unknown redirect: {}", String::from_utf8_lossy(redirect.as_ref() ))));
                 }
             }
             _ => {
-                return Err(MapiError::UnknownServerResponse(format!("login: server responded \
-                                                                     with {:?} during login",
-                                                                    prompt)))
+                return Err(MapiError::UnknownServerResponse(format!("login: server responded with {:?} during login", prompt)))
             }
         }
 
@@ -275,14 +269,10 @@ impl MapiConnection {
                     if byte == b'\n' {
                         Ok((MsgMore, 3))
                     } else {
-                        Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid \
-                                                                      More prompt: \\1\\2{}",
-                                                                     byte)))
+                        Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid More prompt: \\1\\2{}", byte)))
                     }
                 } else {
-                    Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid More \
-                                                                  prompt: \\1{}",
-                                                                 byte)))
+                    Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid More prompt: \\1{}", byte)))
                 }
             } else if initial_byte == b'&' {
                 let byte = buf.get_u8();
@@ -299,8 +289,7 @@ impl MapiConnection {
                 } else if byte == b'6' {
                     Ok((MsgQ(QBlock), 2))
                 } else {
-                    Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid Q: &{}",
-                                                                 byte)))
+                    Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid Q: &{}", byte)))
                 }
             } else if initial_byte == b'=' {
                 if buf.get_u8() == b'O' && buf.get_u8() == b'K' {
@@ -309,9 +298,7 @@ impl MapiConnection {
                     Ok((MsgTupleNoSclice, 1))
                 }
             } else {
-                Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid prompt: \
-                                                              Byte[0] = {}",
-                                                             initial_byte)))
+                Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid prompt: Byte[0] = {}", initial_byte)))
             }
         }
     }
@@ -328,8 +315,7 @@ impl MapiConnection {
         let password = self.password.clone();
 
         if protocol != "9" {
-            return Err(MapiError::ConnectionError(format!("Unsupported protocol version: {}",
-                                                          protocol)));
+            return Err(MapiError::ConnectionError(format!("Unsupported protocol version: {}", protocol)));
         }
 
         if identity != "mserver" && identity != "merovingian" {
@@ -366,9 +352,7 @@ impl MapiConnection {
         } else if algo == "SHA512" {
             Ok(Algorithm::SHA512)
         } else {
-            Err(MapiError::ConnectionError(format!("Server requested unsupported cryptographic \
-                                                    algorithm {}",
-                                                   algo)))
+            Err(MapiError::ConnectionError(format!("Server requested unsupported cryptographic algorithm {}", algo)))
         }
     }
 
@@ -426,8 +410,7 @@ impl MapiConnection {
         // && local
         {
             // TODO: implement local control
-            return Err(MapiError::UnimplementedError("E02 (put_block local control language)"
-                .to_string()));
+            return Err(MapiError::UnimplementedError("E02 (put_block local control language)".to_string()));
         } else {
             use bytes::BufMut;
             let mut sl_start;
