@@ -9,7 +9,7 @@ extern crate monetdb_rust;
 extern crate log;
 extern crate env_logger;
 
-use log::LogLevel;
+//use log::LogLevel;
 
 // use monetdb_rust::mapi::*;
 use monetdb_rust::*;
