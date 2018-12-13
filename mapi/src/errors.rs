@@ -4,10 +4,11 @@
 //
 // Copyright 1997 - July 2008 CWI, August 2008 - 2017 MonetDB B.V.
 //
+extern crate url;
+
 use std;
 use std::fmt;
 use std::error::Error;
-use url;
 
 /// Definition for the low level errors that might occur when talking to a
 /// MonetDB server.

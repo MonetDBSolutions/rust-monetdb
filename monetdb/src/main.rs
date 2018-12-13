@@ -4,7 +4,7 @@
 //
 // Copyright 1997 - July 2008 CWI, August 2008 - 2018 MonetDB B.V.
 //
-extern crate monetdb_rust;
+extern crate monetdb;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
@@ -12,7 +12,7 @@ extern crate env_logger;
 //use log::LogLevel;
 
 // use monetdb_rust::mapi::*;
-use monetdb_rust::*;
+use monetdb::*;
 
 fn main() {
     env_logger::init().unwrap();

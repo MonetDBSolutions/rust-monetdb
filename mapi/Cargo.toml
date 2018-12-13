@@ -4,5 +4,8 @@ version = "0.1.0"
 authors = ["Panagiotis Koutsourakis <kutsurak@monetdbsolutions.com>"]
 
 [dependencies]
+bytes = "0.4.4"
+crypto-hash = "0.3.0"
+url = "1.5.1"
 log = "0.3.8"
 env_logger = "0.4.3"

@@ -16,6 +16,13 @@ use std::net::Shutdown;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 
+extern crate crypto_hash;
+extern crate bytes;
+#[macro_use]
+extern crate log;
+
+pub mod errors;
+
 use crypto_hash::{Algorithm, hex_digest};
 use crate::errors::MapiError;
 
