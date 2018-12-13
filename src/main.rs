@@ -17,8 +17,10 @@ use monetdb_rust::*;
 fn main() {
     env_logger::init().unwrap();
     let mut c = Connection::connect("mapi://localhost:50000/rustdb").unwrap();
-    // let res = c.execute("CREATE TABLE foo (i int)").unwrap();
+    let res = c.execute("CREATE TABLE IF NOT EXISTS foo (i int)").unwrap();
+    info!("Result = {}", res);
     let res = c.execute("INSERT INTO foo VALUES (1), (2)").unwrap();
+    info!("Result = {}", res);
     let res = c.execute("SELECT * from foo").unwrap();
-    info!("Inserted {} values", res);
+    info!("Result = {}", res);
 }
