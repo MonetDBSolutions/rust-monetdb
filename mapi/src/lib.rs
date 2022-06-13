@@ -63,7 +63,7 @@ impl MapiConnectionParams {
         MapiConnectionParams {
             database: database.to_string(),
             username: Some(
-                if username == ""
+                if username.is_empty()
                 {
                     String::from("monetdb")
                 } else {
@@ -81,7 +81,7 @@ impl MapiConnectionParams {
 
 // MAPI Protocol version 9: Server and client exchange information in blocks of
 // 8094 bytes.
-const BLOCK_SIZE: usize = (8 * 1024 - 2);
+const BLOCK_SIZE: usize = 8 * 1024 - 2;
 
 /// Low level connection to MonetDB. This struct implements the mapi protocol version 9.
 #[allow(dead_code)]
@@ -110,7 +110,7 @@ impl MapiConnection {
 
         let hostname = match params.hostname {
             Some(h) => {
-                if h.starts_with("/") {
+                if h.starts_with('/') {
                     socket = format!("{}/.s.monetdb.{}", h, port);
                     None
                 } else {
@@ -125,23 +125,23 @@ impl MapiConnection {
         let lang = params.language.unwrap_or(MapiLanguage::Sql);
 
         let socket = match hostname.clone() {
-            Some(h) => MapiSocket::TCP(TcpStream::connect(h)?),
+            Some(h) => MapiSocket::Tcp(TcpStream::connect(h)?),
             None => {
                 let sbuf = [b'0'; 1];
                 let mut c = UnixStream::connect(socket)?;
                 // We need to send b'0' to initialize the connection
                 if lang != MapiLanguage::Control {
-                    c.write(&sbuf).unwrap();
+                    c.write_all(&sbuf).unwrap();
                 }
-                MapiSocket::UNIX(c)
+                MapiSocket::Unix(c)
             }
         };
         let mut connection = MapiConnection {
-            socket: socket,
+            socket,
             language: lang,
-            hostname: hostname.unwrap_or(String::from("localhost")),
-            username: params.username.unwrap_or(String::from("monetdb")),
-            password: params.password.unwrap_or(String::from("monetdb")),
+            hostname: hostname.unwrap_or_else(|| String::from("localhost")),
+            username: params.username.unwrap_or_else(|| String::from("monetdb")),
+            password: params.password.unwrap_or_else(|| String::from("monetdb")),
             database: params.database,
             port: params.port.unwrap_or(50000),
             state: MapiConnectionState::StateInit,
@@ -158,7 +158,7 @@ impl MapiConnection {
         use self::ServerResponsePrompt::*;
         match self.state {
             MapiConnectionState::StateInit => {
-                return Err(MapiError::ConnectionError("Not connected".to_string()))
+                Err(MapiError::ConnectionError("Not connected".to_string()))
             }
             MapiConnectionState::StateReady => {
                 self.put_block(operation.as_bytes().to_vec())?;
@@ -166,39 +166,39 @@ impl MapiConnection {
                 let (prompt, prompt_length) = MapiConnection::parse_prompt(&response)?;
 
                 match prompt {
-                    MsgPrompt => return Ok("".to_string()),
+                    MsgPrompt => Ok("".to_string()),
                     MsgOk => {
                         let resp = response.split_at(prompt_length).1;
-                        return Ok(String::from_utf8(resp.to_vec())?);
+                        Ok(String::from_utf8(resp.to_vec())?)
                     }
                     // Tell the server it's not getting anything more from us
-                    MsgMore => return self.cmd(""),
+                    MsgMore => self.cmd(""),
                     MsgQ(p) => {
                         match p {
-                            QResponse::QUpdate => {
+                            QResponse::Update => {
                                 // TODO: find a way to remove this clone
                                 for line in String::from_utf8(response.clone())?.lines() {
-                                    if line.starts_with("!") {
+                                    if line.starts_with('!') {
                                         return Err(MapiError::OperationError(line.to_string()));
                                     }
                                 }
-                                return Ok(String::from_utf8(response)?);
+                                Ok(String::from_utf8(response)?)
                             }
                             _ => {
-                                return Ok(String::from_utf8(response)?);
+                                Ok(String::from_utf8(response)?)
                             }
 
                         }
                     }
                     MsgHeader => {
-                        return Ok(String::from_utf8(response)?);
+                        Ok(String::from_utf8(response)?)
                     }
                     MsgTuple => {
-                        return Ok(String::from_utf8(response)?);
+                        Ok(String::from_utf8(response)?)
                     }
                     MsgError => {
                         let er = String::from_utf8(response)?;
-                        return Err(MapiError::OperationError(er));
+                        Err(MapiError::OperationError(er))
                     }
 
                     _ => {
@@ -224,8 +224,8 @@ impl MapiConnection {
         let (prompt, prompt_length) = MapiConnection::parse_prompt(&response)?;
 
         match prompt {
-            MsgPrompt => return Ok(()), // Server is happy
-            MsgOk => return Ok(()), // Server is happy
+            MsgPrompt => Ok(()), // Server is happy
+            MsgOk => Ok(()), // Server is happy
             MsgError => {
                 return Err(MapiError::ConnectionError(format!("login: Server error: {}", String::from_utf8(response)?)))
             }
@@ -236,9 +236,9 @@ impl MapiConnection {
                 debug!("prot = {}", prot);
                 if prot == "merovingian" {
                     debug!("Restarting authentication");
-                    return self.login(iteration + 1);
+                    self.login(iteration + 1)
                 } else if prot == "monetdb" {
-                    return Err(MapiError::UnimplementedError("E03 (unimplemented redirect)".to_string()));
+                    Err(MapiError::UnimplementedError("E03 (unimplemented redirect)".to_string()))
                 } else {
                     return Err(MapiError::ConnectionError(format!( "Unknown redirect: {}", String::from_utf8_lossy(redirect.as_ref() ))));
                 }
@@ -286,17 +286,17 @@ impl MapiConnection {
             } else if initial_byte == b'&' {
                 let byte = buf.get_u8();
                 if byte == b'1' {
-                    Ok((MsgQ(QTable), 2))
+                    Ok((MsgQ(Table), 2))
                 } else if byte == b'2' {
-                    Ok((MsgQ(QUpdate), 2))
+                    Ok((MsgQ(Update), 2))
                 } else if byte == b'3' {
-                    Ok((MsgQ(QSchema), 2))
+                    Ok((MsgQ(Schema), 2))
                 } else if byte == b'4' {
-                    Ok((MsgQ(QTrans), 2))
+                    Ok((MsgQ(Trans), 2))
                 } else if byte == b'5' {
-                    Ok((MsgQ(QPrepare), 2))
+                    Ok((MsgQ(Prepare), 2))
                 } else if byte == b'6' {
-                    Ok((MsgQ(QBlock), 2))
+                    Ok((MsgQ(Block), 2))
                 } else {
                     Err(MapiError::UnknownServerResponse(format!("parse_prompt: Invalid Q: &{}", byte)))
                 }
@@ -312,7 +312,7 @@ impl MapiConnection {
         }
     }
 
-    fn challenge_response(&mut self, challenge: &Vec<u8>) -> Result<Vec<u8>> {
+    fn challenge_response(&mut self, challenge: &[u8]) -> Result<Vec<u8>> {
         let mut iter = challenge.split(|x| *x == b':');
 
         let salt = String::from_utf8_lossy(iter.next().unwrap());
@@ -426,7 +426,7 @@ impl MapiConnection {
             let mut sl_end = 0;
             while sl_end + BLOCK_SIZE < message.len() {
                 sl_start = sl_end;
-                sl_end = sl_end + BLOCK_SIZE;
+                sl_end += BLOCK_SIZE;
                 let slice = &message[sl_start..sl_end];
                 let mut header = vec![];
                 header.put_u16_le((slice.len() << 1) as u16);
@@ -448,7 +448,7 @@ impl MapiConnection {
 
     pub fn close(&mut self) -> Result<()> {
         match self.socket.shutdown(Shutdown::Both) {
-            Ok(()) => return Ok(()),
+            Ok(()) => Ok(()),
             Err(e) => Err(MapiError::IOError(e))
         }
     }
@@ -474,15 +474,15 @@ pub fn get_bytes<R>(stream: R, limit: u64) -> Result<Vec<u8>>
 }
 
 enum MapiSocket {
-    TCP(TcpStream),
-    UNIX(UnixStream),
+    Tcp(TcpStream),
+    Unix(UnixStream),
 }
 
 impl Read for MapiSocket {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match *self {
-            MapiSocket::TCP(ref mut s) => s.read(buf),
-            MapiSocket::UNIX(ref mut s) => s.read(buf),
+            MapiSocket::Tcp(ref mut s) => s.read(buf),
+            MapiSocket::Unix(ref mut s) => s.read(buf),
         }
     }
 }
@@ -490,14 +490,14 @@ impl Read for MapiSocket {
 impl Write for MapiSocket {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match *self {
-            MapiSocket::TCP(ref mut s) => s.write(buf),
-            MapiSocket::UNIX(ref mut s) => s.write(buf),
+            MapiSocket::Tcp(ref mut s) => s.write(buf),
+            MapiSocket::Unix(ref mut s) => s.write(buf),
         }
     }
     fn flush(&mut self) -> io::Result<()> {
         match *self {
-            MapiSocket::TCP(ref mut s) => s.flush(),
-            MapiSocket::UNIX(ref mut s) => s.flush(),
+            MapiSocket::Tcp(ref mut s) => s.flush(),
+            MapiSocket::Unix(ref mut s) => s.flush(),
         }
     }
 }
@@ -505,8 +505,8 @@ impl Write for MapiSocket {
 impl MapiSocket {
     pub fn shutdown(&self, how: Shutdown) -> io::Result<()> {
         match *self {
-            MapiSocket::TCP(ref s) => s.shutdown(how),
-            MapiSocket::UNIX(ref s) => s.shutdown(how),
+            MapiSocket::Tcp(ref s) => s.shutdown(how),
+            MapiSocket::Unix(ref s) => s.shutdown(how),
         }
     }
 }
@@ -527,12 +527,12 @@ enum ServerResponsePrompt {
 
 #[derive(Debug)]
 enum QResponse {
-    QTable,
-    QUpdate,
-    QSchema,
-    QTrans,
-    QPrepare,
-    QBlock,
+    Table,
+    Update,
+    Schema,
+    Trans,
+    Prepare,
+    Block,
 }
 
 enum MapiConnectionState {
