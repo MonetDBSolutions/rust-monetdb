@@ -15,15 +15,17 @@ use std::net::TcpStream;
 use std::net::Shutdown;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
+use std::rc::Rc;
+use std::clone::Clone;
 
-extern crate crypto_hash;
+extern crate sha2;
 extern crate bytes;
 #[macro_use]
 extern crate log;
 
 pub mod errors;
 
-use crypto_hash::{Algorithm, hex_digest};
+use sha2::{Sha256, Sha512, digest::DynDigest};
 use crate::errors::MapiError;
 
 /// This enum specifies the different languages that the protocol can handle.
@@ -206,7 +208,6 @@ impl MapiConnection {
                                                                       prompt)))
                     }
                 }
-
             }
         }
     }
@@ -331,17 +332,24 @@ impl MapiConnection {
             return Err(MapiError::ConnectionError(format!("Unknown server type: {}", identity)));
         }
 
-        let algorithm = self.get_encoding_algorithm(&algo[..])?;
+        let mut algorithm = self.get_encoding_algorithm(&algo[..])?;
 
         let hash_list: Vec<&str> = hashes.split_terminator(',').collect();
         let hash_algo = self.get_hash_algorithm(hash_list)?;
 
-        let password = hex_digest(algorithm, password.as_bytes());
-        let hashed_passwd = hex_digest(hash_algo.1, format!("{}{}", password, salt).as_bytes());
+        let hasher = Rc::<dyn DynDigest>::get_mut(&mut algorithm).ok_or(MapiError::ConnectionError("Unavailable hash algorithm".to_string()))?;
+        let algo_string = hash_algo.0;
+        hasher.update(password.as_bytes());
+        let hashed_passwd = String::from_utf8(hasher.finalize_reset().to_vec())?;
+
+        let mut algorithm = self.get_encoding_algorithm(&algo[..])?;
+        let hasher = Rc::<dyn DynDigest>::get_mut(&mut algorithm).ok_or(MapiError::ConnectionError("Unavailable hash algorithm".to_string()))?;
+        hasher.update(format!("{}{}", hashed_passwd, salt).as_bytes());
+        let hashed_passwd = String::from_utf8(hasher.finalize_reset().to_vec())?;
 
         let ret = format!("BIG:{}:{}{}:{}:{}:",
                           self.username,
-                          hash_algo.0,
+                          algo_string,
                           hashed_passwd,
                           self.language,
                           self.database)
@@ -351,38 +359,23 @@ impl MapiConnection {
         Ok(ret)
     }
 
-    fn get_encoding_algorithm(&self, algo: &str) -> Result<Algorithm> {
-        if algo == "MD5" {
-            Ok(Algorithm::MD5)
-        } else if algo == "SHA1" {
-            Ok(Algorithm::SHA1)
-        } else if algo == "SHA256" {
-            Ok(Algorithm::SHA256)
+    fn get_encoding_algorithm(&self, algo: &str) -> Result<Rc<dyn DynDigest>> {
+        if algo == "SHA256" {
+            Ok(Rc::new(Sha256::default()))
         } else if algo == "SHA512" {
-            Ok(Algorithm::SHA512)
+            Ok(Rc::new(Sha512::default()))
         } else {
             Err(MapiError::ConnectionError(format!("Server requested unsupported cryptographic algorithm {}", algo)))
         }
     }
 
-    fn get_hash_algorithm(&self, algs: Vec<&str>) -> Result<(String, Algorithm)> {
-        let ret = if algs.contains(&"SHA512") {
-            Some(("{SHA512}".to_string(), Algorithm::SHA512))
+    fn get_hash_algorithm(&self, algs: Vec<&str>) -> Result<(String, Rc<dyn DynDigest>)> {
+        if algs.contains(&"SHA512") {
+            Ok(("SHA512".to_string(), Rc::new(Sha512::default())))
         } else if algs.contains(&"SHA256") {
-            Some(("{SHA256}".to_string(), Algorithm::SHA256))
-        } else if algs.contains(&"SHA1") {
-            Some(("{SHA1}".to_string(), Algorithm::SHA1))
-        } else if algs.contains(&"MD5") {
-            Some(("{MD5}".to_string(), Algorithm::MD5))
+            Ok(("SHA256".to_string(), Rc::new(Sha256::default())))
         } else {
-            None
-        };
-
-        match ret {
-            Some(algo) => Ok(algo),
-            None => {
-                Err(MapiError::ConnectionError("No supported hash algorithm found".to_string()))
-            }
+            Err(MapiError::ConnectionError("No supported hash algorithm found".to_string()))
         }
     }
 

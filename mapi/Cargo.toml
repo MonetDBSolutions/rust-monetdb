@@ -5,7 +5,10 @@ authors = ["Panagiotis Koutsourakis <kutsurak@monetdbsolutions.com>"]
 
 [dependencies]
 bytes = "0.4.4"
-crypto-hash = "0.3.0"
+# bytes = "1.1.0"
+# crypto-hash = "0.3.0"
+sha2 = "0.10"
+# url = "2.2.2"
 url = "1.5.1"
-log = "0.3.8"
+log = "0.4.17"
 env_logger = "0.4.3"
