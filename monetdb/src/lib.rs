@@ -20,9 +20,8 @@ pub type Result<T> = result::Result<T, MonetDBError>;
 /// This implements the connection to a MonetDB database
 pub struct Connection {
     server_url: String,
-    connection: mapi::MapiConnection
+    connection: mapi::MapiConnection,
 }
-
 
 impl Connection {
     pub fn connect(url: &str) -> Result<Connection> {
@@ -37,15 +36,17 @@ impl Connection {
 
         // Remove the initial '/'
         let db = parsed.path().get(1..).unwrap();
-        let mapi_params = mapi::MapiConnectionParams::new(db,
-                                                          parsed.username(),
-                                                          parsed.password(),
-                                                          Some( mapi::MapiLanguage::Sql ),
-                                                          parsed.host_str(),
-                                                          parsed.port());
+        let mapi_params = mapi::MapiConnectionParams::new(
+            db,
+            parsed.username(),
+            parsed.password(),
+            Some(mapi::MapiLanguage::Sql),
+            parsed.host_str(),
+            parsed.port(),
+        );
         Ok(Connection {
             server_url: String::from(url),
-            connection: mapi::MapiConnection::connect(mapi_params)?
+            connection: mapi::MapiConnection::connect(mapi_params)?,
         })
     }
 
@@ -59,7 +60,12 @@ impl Connection {
 
         debug!("Query:\n{}\nResponse:\n{}", query, resp);
 
-        let insertions = resp.split_whitespace().nth(1).unwrap().parse::<u64>().unwrap();
+        let insertions = resp
+            .split_whitespace()
+            .nth(1)
+            .unwrap()
+            .parse::<u64>()
+            .unwrap();
         Ok(insertions)
     }
 }
