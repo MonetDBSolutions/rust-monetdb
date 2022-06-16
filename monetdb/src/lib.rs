@@ -19,7 +19,7 @@ pub type Result<T> = result::Result<T, MonetDBError>;
 
 /// This implements the connection to a MonetDB database
 pub struct Connection {
-    server_url: String,
+    _server_url: String,
     connection: mapi::MapiConnection,
 }
 
@@ -45,7 +45,7 @@ impl Connection {
             parsed.port(),
         );
         Ok(Connection {
-            server_url: String::from(url),
+            _server_url: String::from(url),
             connection: mapi::MapiConnection::connect(mapi_params)?,
         })
     }

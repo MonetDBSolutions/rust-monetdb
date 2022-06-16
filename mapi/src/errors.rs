@@ -62,7 +62,7 @@ impl From<std::string::FromUtf8Error> for MapiError {
 
 impl From<std::fmt::Error> for MapiError {
     fn from(error: std::fmt::Error) -> Self {
-        MapiError::OtherError("Formatting error".to_string())
+        MapiError::OtherError(error.to_string())
     }
 }
 
