@@ -107,10 +107,7 @@ impl MapiConnection {
     pub fn connect(params: MapiConnectionParams) -> Result<MapiConnection> {
         let port = params.port.unwrap_or(50000);
 
-        let mut socket = match params.unix_socket {
-            Some(p) => p,
-            None => format!("/tmp/.s.monetdb.{}", port),
-        };
+        let mut socket = params.unix_socket.unwrap_or_else(|| format!("/tmp/.s.monetdb.{}", port));
 
         let hostname = match params.hostname {
             Some(h) => {
@@ -147,7 +144,7 @@ impl MapiConnection {
             username: params.username.unwrap_or_else(|| String::from("monetdb")),
             password: params.password.unwrap_or_else(|| String::from("monetdb")),
             database: params.database,
-            port: params.port.unwrap_or(50000),
+            port: port,
             state: MapiConnectionState::StateInit,
         };
 
@@ -334,7 +331,7 @@ impl MapiConnection {
             return Err(MapiError::ConnectionError(format!("Unknown server type: {}", identity)));
         }
 
-        let mut algorithm = self.get_encoding_algorithm(&algo[..])?;
+        let mut algorithm = self.get_encoding_algorithm(&algo)?;
 
         let hash_list: Vec<&str> = hashes.split_terminator(',').collect();
         let hash_algo = self.get_hash_algorithm(hash_list)?;
@@ -343,20 +340,13 @@ impl MapiConnection {
         let algo_string = hash_algo.0;
         hasher.update(password.as_bytes());
         let pw = hasher.finalize_reset();
-        let mut hashed_passwd = String::with_capacity(2 * pw.as_ref().len());
-        for byte in pw.iter() {
-            write!(hashed_passwd, "{:02x}", byte)?;
-        }
-
+        let mut hashed_passwd = bytes_to_hex(pw.as_ref())?;
 
         let mut algorithm = self.get_encoding_algorithm(&algo[..])?;
         let hasher = Rc::<dyn DynDigest>::get_mut(&mut algorithm).ok_or(MapiError::ConnectionError("Unavailable hash algorithm".to_string()))?;
         hasher.update(format!("{}{}", hashed_passwd, salt).as_bytes());
         let spw = hasher.finalize_reset();
-        let mut salted_passwd = String::with_capacity(2 * spw.as_ref().len());
-        for byte in spw.iter() {
-            write!(salted_passwd, "{:02x}", byte)?;
-        }
+        let mut salted_passwd = bytes_to_hex(spw.as_ref())?;
 
         let ret = format!("BIG:{}:{}{}:{}:{}:",
                           self.username,
@@ -365,8 +355,8 @@ impl MapiConnection {
                           self.language,
                           self.database);
 
-
         debug!("Response: {}", ret);
+
         Ok(ret.as_bytes().to_vec())
     }
 
@@ -456,6 +446,16 @@ impl MapiConnection {
             Err(e) => Err(MapiError::IOError(e))
         }
     }
+}
+
+fn bytes_to_hex(bts: &[u8]) -> Result<String>
+{
+    let mut hex_str = String::with_capacity(2 * bts.len());
+    for byte in bts.iter() {
+        write!(hex_str, "{:02x}", byte)?;
+    }
+
+    Ok(hex_str)
 }
 
 pub fn get_bytes<R>(stream: R, limit: u64) -> Result<Vec<u8>>
