@@ -1,6 +1,7 @@
 [package]
 name = "monetdb"
 version = "0.1.0"
+edition = "2021"
 authors = ["Panagiotis Koutsourakis <kutsurak@monetdbsolutions.com>"]
 
 [dependencies]

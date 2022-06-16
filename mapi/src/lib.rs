@@ -19,15 +19,13 @@ use std::path::Path;
 use std::rc::Rc;
 use std::result;
 
-extern crate bytes;
-extern crate sha2;
-#[macro_use]
-extern crate log;
-
 pub mod errors;
 
 use crate::errors::MapiError;
-use sha2::{digest::DynDigest, Sha256, Sha512};
+use digest::DynDigest;
+use log::debug;
+use sha2::{Sha256, Sha512};
+use ripemd::{Ripemd160};
 
 /// This enum specifies the different languages that the protocol can handle.
 #[derive(PartialEq)]
@@ -367,7 +365,7 @@ impl MapiConnection {
         let algo_string = hash_algo.0;
         hasher.update(password.as_bytes());
         let pw = hasher.finalize_reset();
-        let mut hashed_passwd = bytes_to_hex(pw.as_ref())?;
+        let hashed_passwd = bytes_to_hex(pw.as_ref())?;
 
         let mut algorithm = self.get_encoding_algorithm(&algo[..])?;
         let hasher = Rc::<dyn DynDigest>::get_mut(&mut algorithm).ok_or(
@@ -375,7 +373,7 @@ impl MapiConnection {
         )?;
         hasher.update(format!("{}{}", hashed_passwd, salt).as_bytes());
         let spw = hasher.finalize_reset();
-        let mut salted_passwd = bytes_to_hex(spw.as_ref())?;
+        let salted_passwd = bytes_to_hex(spw.as_ref())?;
 
         let ret = format!(
             "BIG:{}:{}{}:{}:{}:",
@@ -405,6 +403,8 @@ impl MapiConnection {
             Ok(("{SHA512}".to_string(), Rc::new(Sha512::default())))
         } else if algs.contains(&"SHA256") {
             Ok(("{SHA256}".to_string(), Rc::new(Sha256::default())))
+        } else if algs.contains(&"RIPEMD160") {
+            Ok(("{RIPEMD160}".to_string(), Rc::new(Ripemd160::default())))
         } else {
             Err(MapiError::ConnectionError(
                 "No supported hash algorithm found".to_string(),

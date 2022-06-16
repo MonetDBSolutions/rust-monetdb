@@ -4,16 +4,12 @@
 //
 // Copyright 1997 - July 2008 CWI, August 2008 - 2022 MonetDB B.V.
 //
-extern crate bytes;
-extern crate url;
-#[macro_use]
-extern crate log;
-extern crate mapi;
 
 use std::result;
+use log::debug;
 use url::Url;
 
-use crate::mapi::errors::MonetDBError;
+use mapi::errors::MonetDBError;
 
 pub type Result<T> = result::Result<T, MonetDBError>;
 
