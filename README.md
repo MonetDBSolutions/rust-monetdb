@@ -1,5 +1,5 @@
 # monetdb-rust
-A native MonetDB driver for Rust.
+A native Rust driver for MonetDB.
 
 ```toml
 [dependencies]
