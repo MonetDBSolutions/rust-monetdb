@@ -20,6 +20,7 @@ pub enum MapiError {
     UnknownServerResponse(String),
     OperationError(String),
     ServerError(std::string::FromUtf8Error),
+    OtherError(String),
 }
 
 impl fmt::Display for MapiError {
@@ -36,6 +37,7 @@ impl fmt::Display for MapiError {
             }
             OperationError(ref s) => write!(f, "MapiError: An error occurred at the server: {}", s),
             ServerError(ref s) => write!(f, "MapiError: Server sent invalid UTF8: {}", s),
+            OtherError(ref s) => write!(f, "MapiError: Other error: {}", s),
         }
     }
 }
@@ -55,6 +57,12 @@ impl From<std::io::Error> for MapiError {
 impl From<std::string::FromUtf8Error> for MapiError {
     fn from(error: std::string::FromUtf8Error) -> Self {
         MapiError::ServerError(error)
+    }
+}
+
+impl From<std::fmt::Error> for MapiError {
+    fn from(error: std::fmt::Error) -> Self {
+        MapiError::OtherError("Formatting error".to_string())
     }
 }
 

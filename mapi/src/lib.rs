@@ -8,9 +8,11 @@
 
 //! The implementation of the low level connection to MonetDB.
 use std::io;
+use std::io::Read;
+use std::io::Write;
 use std::result;
 use std::fmt;
-use std::io::prelude::*;
+use std::fmt::Write as fmtWrite;
 use std::net::TcpStream;
 use std::net::Shutdown;
 use std::os::unix::net::UnixStream;
@@ -340,23 +342,32 @@ impl MapiConnection {
         let hasher = Rc::<dyn DynDigest>::get_mut(&mut algorithm).ok_or(MapiError::ConnectionError("Unavailable hash algorithm".to_string()))?;
         let algo_string = hash_algo.0;
         hasher.update(password.as_bytes());
-        let hashed_passwd = String::from_utf8(hasher.finalize_reset().to_vec())?;
+        let pw = hasher.finalize_reset();
+        let mut hashed_passwd = String::with_capacity(2 * pw.as_ref().len());
+        for byte in pw.iter() {
+            write!(hashed_passwd, "{:02x}", byte)?;
+        }
+
 
         let mut algorithm = self.get_encoding_algorithm(&algo[..])?;
         let hasher = Rc::<dyn DynDigest>::get_mut(&mut algorithm).ok_or(MapiError::ConnectionError("Unavailable hash algorithm".to_string()))?;
         hasher.update(format!("{}{}", hashed_passwd, salt).as_bytes());
-        let hashed_passwd = String::from_utf8(hasher.finalize_reset().to_vec())?;
+        let spw = hasher.finalize_reset();
+        let mut salted_passwd = String::with_capacity(2 * spw.as_ref().len());
+        for byte in spw.iter() {
+            write!(salted_passwd, "{:02x}", byte)?;
+        }
 
         let ret = format!("BIG:{}:{}{}:{}:{}:",
                           self.username,
                           algo_string,
-                          hashed_passwd,
+                          salted_passwd,
                           self.language,
-                          self.database)
-            .as_bytes()
-            .to_vec();
+                          self.database);
 
-        Ok(ret)
+
+        debug!("Response: {}", ret);
+        Ok(ret.as_bytes().to_vec())
     }
 
     fn get_encoding_algorithm(&self, algo: &str) -> Result<Rc<dyn DynDigest>> {
@@ -371,9 +382,9 @@ impl MapiConnection {
 
     fn get_hash_algorithm(&self, algs: Vec<&str>) -> Result<(String, Rc<dyn DynDigest>)> {
         if algs.contains(&"SHA512") {
-            Ok(("SHA512".to_string(), Rc::new(Sha512::default())))
+            Ok(("{SHA512}".to_string(), Rc::new(Sha512::default())))
         } else if algs.contains(&"SHA256") {
-            Ok(("SHA256".to_string(), Rc::new(Sha256::default())))
+            Ok(("{SHA256}".to_string(), Rc::new(Sha256::default())))
         } else {
             Err(MapiError::ConnectionError("No supported hash algorithm found".to_string()))
         }
@@ -448,7 +459,7 @@ impl MapiConnection {
 }
 
 pub fn get_bytes<R>(stream: R, limit: u64) -> Result<Vec<u8>>
-    where R: Read
+    where R: io::Read
 {
     let mut buff = vec![];
     let mut chunk = stream.take(limit);
@@ -471,7 +482,7 @@ enum MapiSocket {
     Unix(UnixStream),
 }
 
-impl Read for MapiSocket {
+impl std::io::Read for MapiSocket {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match *self {
             MapiSocket::Tcp(ref mut s) => s.read(buf),
@@ -480,7 +491,7 @@ impl Read for MapiSocket {
     }
 }
 
-impl Write for MapiSocket {
+impl std::io::Write for MapiSocket {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match *self {
             MapiSocket::Tcp(ref mut s) => s.write(buf),
