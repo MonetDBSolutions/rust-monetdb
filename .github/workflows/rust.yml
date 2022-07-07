@@ -13,8 +13,11 @@ jobs:
     - name: Lint
       run: cargo clippy
 
-  linux:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu, macOS]
+    runs-on: ${{ matrix.os }}-latest
     needs: linter
     steps:
     - uses: actions/checkout@v3
@@ -22,35 +25,21 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
-
-  macos:
-    runs-on: macOS-latest
-    needs: linter
-    steps:
-    - uses: actions/checkout@v3
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
-
-  # windows:
-  #   runs-on: windows-latest
-  #   needs: linter
-  #   steps:
-  #   - uses: actions/checkout@v3
-  #   - name: Build
-  #     run: cargo build --verbose
-  #   - name: Run tests
-  #     run: cargo test --verbose
-
 
   integration-tests:
-      runs-on: ubuntu-latest
-      needs: [linux, macos]
-      services:
-        monetdb:
-          image: monetdb/monetdb
-      steps:
-      - uses: actions/checkout@v3
-      - name: Integration Tests
-        run: echo "foo"
+    strategy:
+      matrix:
+        os: [ubuntu]
+    runs-on: ${{ matrix.os }}-latest
+    needs: build
+    services:
+      monetdb:
+        image: monetdb/vessel_ai
+        env: 
+          DB_HOST: localhost
+          DB_PORT: 50000
+          DB_NAME: demo
+    steps:
+    - uses: actions/checkout@v3
+    - name: Integration Tests
+      run: cargo t --features integration
