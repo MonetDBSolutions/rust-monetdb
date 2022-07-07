@@ -26,20 +26,18 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
 
-  # integration-tests:
-  #   strategy:
-  #     matrix:
-  #       os: [ubuntu]
-  #   runs-on: ${{ matrix.os }}-latest
-  #   needs: build
-  #   services:
-  #     monetdb:
-  #       image: monetdb/vessel_ai
-  #       env: 
-  #         DB_HOST: localhost
-  #         DB_PORT: 50000
-  #         DB_NAME: demo
-  #   steps:
-  #   - uses: actions/checkout@v3
-  #   - name: Integration Tests
-  #     run: cargo t --features integration
+  integration-tests:
+    strategy:
+      matrix:
+        os: [ubuntu]
+    runs-on: ${{ matrix.os }}-latest
+    needs: build
+    services:
+      monetdb:
+        image: monetdb/monetdb
+        ports:
+         - 50000:50000
+    steps:
+    - uses: actions/checkout@v3
+    - name: Integration Tests
+      run: cargo t --features integration
