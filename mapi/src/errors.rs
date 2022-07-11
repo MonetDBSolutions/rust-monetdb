@@ -7,8 +7,8 @@
 extern crate url;
 
 use std;
-use std::fmt;
 use std::error::Error;
+use std::fmt;
 
 /// Definition for the low level errors that might occur when talking to a
 /// MonetDB server.
@@ -29,11 +29,15 @@ impl fmt::Display for MapiError {
         match *self {
             IOError(ref e) => write!(f, "MapiError: {}", e),
             ConnectionError(ref s) => write!(f, "MapiError: Connection error: {}", s),
-            UnimplementedError(ref s) => write!(f, "MapiError: Unimplemented MAPI functionality: {}", s),
+            UnimplementedError(ref s) => {
+                write!(f, "MapiError: Unimplemented MAPI functionality: {}", s)
+            }
             UnknownServerResponse(ref s) => {
-                write!(f,
-                       "MapiError: Server sent something we don't understand: {}",
-                       s)
+                write!(
+                    f,
+                    "MapiError: Server sent something we don't understand: {}",
+                    s
+                )
             }
             OperationError(ref s) => write!(f, "MapiError: An error occurred at the server: {}", s),
             ServerError(ref s) => write!(f, "MapiError: Server sent invalid UTF8: {}", s),
@@ -79,7 +83,9 @@ impl fmt::Display for MonetDBError {
         match *self {
             InvalidUrl(ref e) => write!(f, "MonetDBError: {}", e),
             ConnectionError(ref s) => write!(f, "MonetDBError: ConnectionError: {}", s),
-            UnimplementedError(ref s) => write!(f, "MonetDBError: Unimplemented SQL functionality: {}", s),
+            UnimplementedError(ref s) => {
+                write!(f, "MonetDBError: Unimplemented SQL functionality: {}", s)
+            }
         }
     }
 }

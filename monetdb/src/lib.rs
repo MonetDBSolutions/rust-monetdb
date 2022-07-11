@@ -7,8 +7,8 @@
 
 mod integration_tests;
 
-use std::result;
 use log::debug;
+use std::result;
 use url::Url;
 
 use mapi::errors::MonetDBError;
