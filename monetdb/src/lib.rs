@@ -6,6 +6,7 @@
 //
 
 mod integration_tests;
+mod monetizer;
 
 use log::debug;
 use std::result;
