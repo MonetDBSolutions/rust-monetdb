@@ -5,6 +5,8 @@
 // Copyright 1997 - July 2008 CWI, August 2008 - 2022 MonetDB B.V.
 //
 
+mod integration_tests;
+
 use std::result;
 use log::debug;
 use url::Url;
