@@ -1,4 +1,10 @@
-pub fn apply_parameters(query: &str, params: Vec<&str>) -> Result<String, String> {
+pub enum MapiValue {
+    MapiString(&'static str),
+    MapiInt(i64),
+    MapiBool(bool)
+}
+
+pub fn apply_parameters(query: &str, params: Vec<MapiValue>) -> Result<String, String> {
     if params.is_empty() {
         return Ok(query.to_string());
     }
@@ -9,6 +15,7 @@ pub fn apply_parameters(query: &str, params: Vec<&str>) -> Result<String, String
 
     for (i, s) in split.iter().enumerate() {
         let mut temp = String::new();
+        temp = s.to_string();
 
         if s.contains("{}") {
            let escaped = convert(&params[i]);
@@ -24,9 +31,22 @@ pub fn apply_parameters(query: &str, params: Vec<&str>) -> Result<String, String
     Ok(out)
 }
 
-fn convert(input: &str) -> String {
-    // TODO: we should check which characters we should ban
-    format!("'{}'", String::from(input).replace("'", ""))
+fn convert(input: &MapiValue) -> String {
+    match input {
+        MapiValue::MapiString(val) => monet_escape(String::from(val.to_owned())),
+        MapiValue::MapiInt(val) => monet_escape(val.to_owned().to_string()),
+        MapiValue::MapiBool(val) => monet_bool(val.to_owned() as bool),
+    }
+}
+
+fn monet_escape(data: String) -> String {
+    let old = data.replace("\\", "\\\\");
+
+    format!("'{}'", old.replace("\'", "\\\'"))
+}
+
+fn monet_bool(data: bool) -> String {
+    vec!["'false'", "'true'"][data as usize].to_string()
 }
 
 #[cfg(test)]
@@ -34,38 +54,77 @@ mod tests {
     use super::*;
 
     #[test]
-    fn stuff_is_escaped_correctly() {
-        let input = String::from("foo");
-        let target = "'foo'";
+    fn bools_are_escaped_correctly() {
+        let _true = true;
+        let _false = false;
+        let should_be_true = "'true'";
+        let should_be_false = "'false'";
+    
+        let is_this_true: String = monet_bool(_true);
+        let is_this_false: String = monet_bool(_false);
 
-        let output = convert(&input);
+        assert_eq!(is_this_true, should_be_true);
+        assert_eq!(is_this_false, should_be_false);
+    }
+    
+    #[test]
+    fn parameters_are_applied_correctly() {
+        let query = "SELECT * FROM demo WHERE {} = 1";
+        let target = "SELECT * FROM demo WHERE 'id' = 1".to_string();
+    
+        let out: String = match apply_parameters(query, vec![MapiValue::MapiString("id")]) {
+            Ok(e) => e,
+            Err(_) => return assert!(false) 
+        };
 
-        assert_eq!(output, target)
+        assert_eq!(out, target);
     }
 
     #[test]
-    fn stuff_with_ticks_is_escaped_correctly() {
-        let input = String::from("'foo'");
-        let input2 = String::from("''foo''");
-        let input3 = String::from("'foo'''''''");
-        let target = "'foo'";
+    fn multiple_parameters_are_applied_correctly() {
+        let query = "SELECT * FROM demo WHERE {} = {}";
+        let target = "SELECT * FROM demo WHERE 'id' = '1'".to_string();
+    
+        let out: String = match apply_parameters(query, vec![MapiValue::MapiString("id"), MapiValue::MapiInt(1)]) {
+            Ok(e) => e,
+            Err(_) => return assert!(false) 
+        };
 
-        let output = convert(&input);
-        let output1 = convert(&input2);
-        let output2 = convert(&input3);
-
-        assert_eq!(output, target);
-        assert_eq!(output1, target);
-        assert_eq!(output2, target)
+        assert_eq!(out, target);
     }
 
     #[test]
-    fn query_is_escaped_correctly() {
-        let input = "SELECT * FROM foobar WHERE foo = {}";
-        let target = "SELECT * FROM foobar WHERE foo = 'bar'";
+    fn bool_parameters_are_applied_correctly() {
+        let query = "SELECT * FROM demo WHERE {} = {}";
+        let target = "SELECT * FROM demo WHERE 'bogus' = 'true'".to_string();
+        let target_false = "SELECT * FROM demo WHERE 'bogus' = 'false'".to_string();
+    
+        let out: String = match apply_parameters(query, vec![MapiValue::MapiString("bogus"), MapiValue::MapiBool(true)]) {
+            Ok(e) => e,
+            Err(_) => return assert!(false) 
+        };
 
-        let output = apply_parameters(input, vec!["bar"]).unwrap();
+        let out_false: String = match apply_parameters(query, vec![MapiValue::MapiString("bogus"), MapiValue::MapiBool(false)]) {
+            Ok(e) => e,
+            Err(_) => return assert!(false) 
+        };
 
-        assert_eq!(output, target)
+        assert_eq!(out, target);
+        assert_eq!(out_false, target_false);
+    }
+
+    #[test]
+    fn parameters_cannot_contain_sql_injection_attacks() {
+        let query = "SELECT * FROM demo WHERE {} = {}";
+        let target = "SELECT * FROM demo WHERE 'id' = '1;COMMIT;DROP TABLE demo'".to_string();
+    
+        let out: String = match apply_parameters(query, vec![MapiValue::MapiString("id"), 
+            MapiValue::MapiString("1;COMMIT;DROP TABLE demo")]) 
+        {
+            Ok(e) => e,
+            Err(_) => return assert!(false) 
+        };
+
+        assert_eq!(out, target);
     }
 }
