@@ -13,6 +13,7 @@ extern crate env_logger;
 
 // use monetdb_rust::mapi::*;
 use monetdb::*;
+use monetizer;
 
 fn main() {
     env_logger::init().unwrap();
@@ -20,6 +21,8 @@ fn main() {
     let res = c.execute("CREATE TABLE IF NOT EXISTS foo (i int)", &[]).unwrap();
     info!("Result = {}", res);
     let res = c.execute("INSERT INTO foo VALUES (1), (2)", &[]).unwrap();
+    info!("Result = {}", res);
+    let res = c.execute("INSERT INTO foo VALUES {}, {}", &[monetizer::SQLParameters::from(3), monetizer::SQLParameters::from(4)]).unwrap();
     info!("Result = {}", res);
     let res = c.execute("SELECT * from foo", &[]).unwrap();
     info!("Result = {}", res);

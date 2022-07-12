@@ -6,17 +6,23 @@ pub struct SQLParameters {
 
 impl From<&str> for SQLParameters {
     fn from(input: &str) -> Self {
-        SQLParameters { value: String::from(input).replace('\'', "") }
+        SQLParameters { value: format!("'{}'", String::from(input).replace('\'', "")) }
+    }
+}
+
+impl From<i32> for SQLParameters {
+    fn from(input: i32) -> Self {
+        SQLParameters { value: format!("({})", input.to_string()) }
     }
 }
 
 impl fmt::Display for SQLParameters {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "'{}'", self.value)
+        write!(f, "{}", self.value)
     }
 } 
 
-pub fn apply_parameters(query: &str, parameters: &[&str]) -> Option<String> {
+pub fn apply_parameters(query: &str, parameters: &[SQLParameters]) -> Option<String> {
     if parameters.is_empty() {
         return Some(query.to_string());
     }
@@ -29,9 +35,7 @@ pub fn apply_parameters(query: &str, parameters: &[&str]) -> Option<String> {
         let mut temp = String::new();
 
         if s.contains("{}") {
-           let escaped = SQLParameters::from(parameters[i]);
-
-           temp = s.replace("{}", &format!("{escaped}"));
+           temp = s.replace("{}", &format!("{}", parameters[i]));
         }
 
         result.push(temp);
@@ -46,12 +50,20 @@ pub fn apply_parameters(query: &str, parameters: &[&str]) -> Option<String> {
 mod tests {
     use super::*;
 
+   #[test]
+    fn ints_are_escaped_correctly() {
+        let input = SQLParameters::from(10);
+        let input1 = SQLParameters::from(999);
+
+        assert_eq!(format!("{input}"), "(10)");
+        assert_eq!(format!("{input1}"), "(999)");
+    }
+
     #[test]
     fn strings_are_escaped_correctly() {
         let input = SQLParameters::from("foo");
         let input_with_ticks = SQLParameters::from("'foo'");
         let input_with_loads_of_ticks = SQLParameters::from("'''foo'''''");
-
 
         assert_eq!(format!("{input}"), "'foo'");
         assert_eq!(format!("{input_with_ticks}"), "'foo'");
@@ -60,11 +72,20 @@ mod tests {
 
     #[test]
     fn queries_are_escaped_correctly() {
-        let q1 = apply_parameters("SELECT * FROM foo WHERE bar = {}", &["foobar"]).unwrap();
-        let q2 = apply_parameters("SELECT * FROM foo WHERE bar = {} AND baz = {}", &["foobar", "something cool"]).unwrap();
+        let q1 = apply_parameters("SELECT * FROM foo WHERE bar = {}", &[SQLParameters::from("foobar")]).unwrap();
+        let q2 = apply_parameters("SELECT * FROM foo WHERE bar = {} AND baz = {}", &[SQLParameters::from("foobar"), 
+        SQLParameters::from("something cool")]).unwrap();
 
         assert_eq!(q1, String::from("SELECT * FROM foo WHERE bar = 'foobar'"));
         assert_eq!(q2, String::from("SELECT * FROM foo WHERE bar = 'foobar' AND baz = 'something cool'"));
     }
 
+    #[test]
+    fn queries_with_ints_are_escaped_correctly() {
+        let q1 = apply_parameters("SELECT * FROM foo WHERE bar = {}", &[SQLParameters::from(10)]).unwrap();
+        let q2 = apply_parameters("SELECT * FROM foo WHERE bar = {} AND baz = {}", &[SQLParameters::from(1), SQLParameters::from(2)]).unwrap();
+
+        assert_eq!(q1, String::from("SELECT * FROM foo WHERE bar = (10)"));
+        assert_eq!(q2, String::from("SELECT * FROM foo WHERE bar = (1) AND baz = (2)"));
+    }
 }
