@@ -53,8 +53,9 @@ impl Connection {
         &mut self.connection
     }
 
-    pub fn execute(&mut self, query: &str /*, params: &[&str]*/) -> Result<u64> {
-        let command = String::from("s") + query + "\n;";
+    pub fn execute(&mut self, query: &str, params: &[&str]) -> Result<u64> {
+        let escaped_query = monetizer::apply_parameters(query, params).unwrap();
+        let command = String::from("s") + &escaped_query + "\n;";
         let resp = self.connection.cmd(&command[..])?;
 
         debug!("Query:\n{}\nResponse:\n{}", query, resp);

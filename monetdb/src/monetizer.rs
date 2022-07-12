@@ -16,7 +16,7 @@ impl fmt::Display for SQLParameters {
     }
 } 
 
-pub fn apply_parameters(query: &str, parameters: Vec<&str>) -> Option<String> {
+pub fn apply_parameters(query: &str, parameters: &[&str]) -> Option<String> {
     if parameters.is_empty() {
         return Some(query.to_string());
     }
@@ -60,8 +60,8 @@ mod tests {
 
     #[test]
     fn queries_are_escaped_correctly() {
-        let q1 = apply_parameters("SELECT * FROM foo WHERE bar = {}", vec!["foobar"]).unwrap();
-        let q2 = apply_parameters("SELECT * FROM foo WHERE bar = {} AND baz = {}", vec!["foobar", "something cool"]).unwrap();
+        let q1 = apply_parameters("SELECT * FROM foo WHERE bar = {}", &["foobar"]).unwrap();
+        let q2 = apply_parameters("SELECT * FROM foo WHERE bar = {} AND baz = {}", &["foobar", "something cool"]).unwrap();
 
         assert_eq!(q1, String::from("SELECT * FROM foo WHERE bar = 'foobar'"));
         assert_eq!(q2, String::from("SELECT * FROM foo WHERE bar = 'foobar' AND baz = 'something cool'"));
