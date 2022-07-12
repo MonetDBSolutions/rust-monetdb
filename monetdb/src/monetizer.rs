@@ -84,8 +84,10 @@ mod tests {
     fn queries_with_ints_are_escaped_correctly() {
         let q1 = apply_parameters("SELECT * FROM foo WHERE bar = {}", &[SQLParameters::from(10)]).unwrap();
         let q2 = apply_parameters("SELECT * FROM foo WHERE bar = {} AND baz = {}", &[SQLParameters::from(1), SQLParameters::from(2)]).unwrap();
+        let q3 = apply_parameters("SELECT * FROM foo WHERE bar = {} AND baz = {}", &[SQLParameters::from(1), SQLParameters::from("foo")]).unwrap();
 
         assert_eq!(q1, String::from("SELECT * FROM foo WHERE bar = (10)"));
         assert_eq!(q2, String::from("SELECT * FROM foo WHERE bar = (1) AND baz = (2)"));
+        assert_eq!(q3, String::from("SELECT * FROM foo WHERE bar = (1) AND baz = 'foo'"));
     }
 }
