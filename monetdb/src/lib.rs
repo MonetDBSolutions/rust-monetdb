@@ -5,6 +5,9 @@
 // Copyright 1997 - July 2008 CWI, August 2008 - 2022 MonetDB B.V.
 //
 
+//! Pure Rust driver for MonetDB
+
+
 use std::result;
 use log::debug;
 use url::Url;
@@ -13,13 +16,15 @@ use mapi::errors::MonetDBError;
 
 pub type Result<T> = result::Result<T, MonetDBError>;
 
-/// This implements the connection to a MonetDB database
 pub struct Connection {
     _server_url: String,
     connection: mapi::MapiConnection,
 }
 
+/// This implements the connection to a MonetDB database
 impl Connection {
+
+    /// Connect to a MonetDB instance
     pub fn connect(url: &str) -> Result<Connection> {
         let parsed = Url::parse(url)?;
         debug!("parsed url {} to", url);
@@ -40,16 +45,19 @@ impl Connection {
             parsed.host_str(),
             parsed.port(),
         );
+
         Ok(Connection {
             _server_url: String::from(url),
             connection: mapi::MapiConnection::connect(mapi_params)?,
         })
     }
 
+    /// Gets a mutable reference to the connection.
     pub fn get_mapi_connection(&mut self) -> &mut mapi::MapiConnection {
         &mut self.connection
     }
 
+    /// Execute a query on the database.
     pub fn execute(&mut self, query: &str /*, params: &[&str]*/) -> Result<u64> {
         let command = String::from("s") + query + "\n;";
         let resp = self.connection.cmd(&command[..])?;
