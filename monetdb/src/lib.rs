@@ -53,7 +53,7 @@ impl Connection {
         &mut self.connection
     }
 
-    pub fn execute(&mut self, query: &str, params: &[monetizer::SQLParameters]) -> Result<u64> {
+    pub fn execute(&mut self, query: &str, params: &[monetizer::SQLParameter]) -> Result<u64> {
         let escaped_query = monetizer::apply_parameters(query, params).unwrap();
         let command = String::from("s") + &escaped_query + "\n;";
         let resp = self.connection.cmd(&command[..])?;

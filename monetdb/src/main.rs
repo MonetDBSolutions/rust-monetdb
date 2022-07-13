@@ -22,7 +22,7 @@ fn main() {
     info!("Result = {}", res);
     let res = c.execute("INSERT INTO foo VALUES (1), (2)", &[]).unwrap();
     info!("Result = {}", res);
-    let res = c.execute("INSERT INTO foo VALUES {}, {}", &[monetizer::SQLParameters::from(3), monetizer::SQLParameters::from(4)]).unwrap();
+    let res = c.execute("INSERT INTO foo VALUES {}, {}", &[monetizer::SQLParameter::from(3), monetizer::SQLParameter::from(4)]).unwrap();
     info!("Result = {}", res);
     let res = c.execute("SELECT * from foo", &[]).unwrap();
     info!("Result = {}", res);

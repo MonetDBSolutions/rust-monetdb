@@ -2,7 +2,7 @@
 #[cfg(feature = "integration")]
 mod tests {
     use mapi::errors::MonetDBError;
-    use crate::monetizer::SQLParameters;
+    use crate::monetizer::SQLParameter;
 
     #[test]
     fn simple_connection_test() -> Result<(), MonetDBError> {
@@ -17,7 +17,7 @@ mod tests {
         monetdb.execute("CREATE TABLE foo (i int)", &[])?;
         let result = monetdb.execute("INSERT INTO foo VALUES (1), (2)", &[])?;
         assert_eq!(result, 2);
-        let result = monetdb.execute("INSERT INTO foo VALUES {}, {}", &[SQLParameters::from(1), SQLParameters::from(2)])?;
+        let result = monetdb.execute("INSERT INTO foo VALUES {}, {}", &[SQLParameter::from(1), SQLParameter::from(2)])?;
         assert_eq!(result, 2);
         let result = monetdb.execute("SELECT * FROM foo", &[])?;
         assert_eq!(result, 0); // ! Not correct. The execute function needs work.
