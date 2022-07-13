@@ -16,7 +16,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu, macOS]
+        os: [ubuntu, macOS, windows]
     runs-on: ${{ matrix.os }}-latest
     needs: linter
     steps:
