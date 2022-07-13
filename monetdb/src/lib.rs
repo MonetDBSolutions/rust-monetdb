@@ -9,6 +9,8 @@
 
 
 use std::result;
+mod integration_tests;
+
 use log::debug;
 use url::Url;
 

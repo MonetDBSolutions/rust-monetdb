@@ -24,8 +24,8 @@ pub mod errors;
 use crate::errors::MapiError;
 use digest::DynDigest;
 use log::debug;
+use ripemd::Ripemd160;
 use sha2::{Sha256, Sha512};
-use ripemd::{Ripemd160};
 
 /// This enum specifies the different languages that the protocol can handle.
 #[derive(PartialEq)]
@@ -144,7 +144,7 @@ impl MapiConnection {
             username: params.username.unwrap_or_else(|| String::from("monetdb")),
             password: params.password.unwrap_or_else(|| String::from("monetdb")),
             database: params.database,
-            port: port,
+            port,
             state: MapiConnectionState::StateInit,
         };
 
@@ -359,18 +359,16 @@ impl MapiConnection {
         let hash_list: Vec<&str> = hashes.split_terminator(',').collect();
         let hash_algo = self.get_hash_algorithm(hash_list)?;
 
-        let hasher = Rc::<dyn DynDigest>::get_mut(&mut algorithm).ok_or(
-            MapiError::ConnectionError("Unavailable hash algorithm".to_string()),
-        )?;
+        let hasher = Rc::<dyn DynDigest>::get_mut(&mut algorithm)
+            .ok_or_else(|| MapiError::ConnectionError("Unavailable hash algorithm".to_string()))?;
         let algo_string = hash_algo.0;
         hasher.update(password.as_bytes());
         let pw = hasher.finalize_reset();
         let hashed_passwd = bytes_to_hex(pw.as_ref())?;
 
         let mut algorithm = self.get_encoding_algorithm(&algo[..])?;
-        let hasher = Rc::<dyn DynDigest>::get_mut(&mut algorithm).ok_or(
-            MapiError::ConnectionError("Unavailable hash algorithm".to_string()),
-        )?;
+        let hasher = Rc::<dyn DynDigest>::get_mut(&mut algorithm)
+            .ok_or_else(|| MapiError::ConnectionError("Unavailable hash algorithm".to_string()))?;
         hasher.update(format!("{}{}", hashed_passwd, salt).as_bytes());
         let spw = hasher.finalize_reset();
         let salted_passwd = bytes_to_hex(spw.as_ref())?;

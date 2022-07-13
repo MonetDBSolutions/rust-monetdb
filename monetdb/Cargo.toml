@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Panagiotis Koutsourakis <kutsurak@monetdbsolutions.com>"]
 
+[features]
+integration = []
+
 [dependencies]
 bytes = "0.4.4"
 # bytes = "1.1.0"
@@ -13,3 +16,4 @@ log = "0.4.17"
 env_logger = "0.4.3"
 
 mapi = {version = "0.1.0", path = "../mapi"}
+
