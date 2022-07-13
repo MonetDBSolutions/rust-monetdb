@@ -2,11 +2,11 @@
 #[cfg(feature = "integration")]
 mod tests {
     use mapi::errors::MonetDBError;
-    use crate::monetizer::SQLParameter;
+    use crate::monetizer::to_sqlparameter;
 
     #[test]
     fn simple_connection_test() -> Result<(), MonetDBError> {
-        let monetdb = crate::Connection::connect("mapi://localhost:50000/demo")?;
+        let _monetdb = crate::Connection::connect("mapi://localhost:50000/demo")?;
         Ok(())
     }
 

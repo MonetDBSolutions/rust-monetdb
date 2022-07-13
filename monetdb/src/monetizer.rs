@@ -1,12 +1,13 @@
 use std::fmt;
 
+#[derive(Debug)]
 pub struct SQLParameter {
     value: String
 }
 
 impl From<&str> for SQLParameter {
     fn from(input: &str) -> Self {
-        SQLParameter { value: format!("'{}'", String::from(input).replace('\'', "")) }
+        SQLParameter { value: format!("'{}'", String::from(input).replace('\'', "''")) }
     }
 }
 
@@ -63,7 +64,7 @@ impl fmt::Display for SQLParameter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.value)
     }
-} 
+}
 
 pub fn to_sqlparameter<T: Into<SQLParameter>>(arg: T) -> SQLParameter {
     arg.into()
@@ -109,8 +110,8 @@ mod tests {
         let input = SQLParameter::from(10);
         let input1 = SQLParameter::from(999);
 
-        assert_eq!(format!("{input}"), "(10)");
-        assert_eq!(format!("{input1}"), "(999)");
+        assert_eq!(format!("{input}"), "10");
+        assert_eq!(format!("{input1}"), "999");
     }
 
     #[test]
@@ -120,15 +121,15 @@ mod tests {
         let input_with_loads_of_ticks = SQLParameter::from("'''foo'''''");
 
         assert_eq!(format!("{input}"), "'foo'");
-        assert_eq!(format!("{input_with_ticks}"), "'foo'");
-        assert_eq!(format!("{input_with_loads_of_ticks}"), "'foo'");
+        assert_eq!(format!("{input_with_ticks}"), "'''foo'''");
+        assert_eq!(format!("{input_with_loads_of_ticks}"), "'''''''foo'''''''''''");
     }
 
     #[test]
     fn queries_are_escaped_correctly() {
-        let q1 = apply_parameters("SELECT * FROM foo WHERE bar = {}", &[SQLParameter::from("foobar")]).unwrap();
-        let q2 = apply_parameters("SELECT * FROM foo WHERE bar = {} AND baz = {}", &[SQLParameter::from("foobar"),
-        SQLParameter::from("something cool")]).unwrap();
+        let q1 = apply_parameters("SELECT * FROM foo WHERE bar = {}", vec![to_sqlparameter("foobar")]);
+        let q2 = apply_parameters("SELECT * FROM foo WHERE bar = {} AND baz = {}", vec![to_sqlparameter("foobar"),
+        to_sqlparameter("something cool")]);
 
         assert_eq!(q1, String::from("SELECT * FROM foo WHERE bar = 'foobar'"));
         assert_eq!(q2, String::from("SELECT * FROM foo WHERE bar = 'foobar' AND baz = 'something cool'"));
@@ -136,12 +137,14 @@ mod tests {
 
     #[test]
     fn queries_with_ints_are_escaped_correctly() {
-        let q1 = apply_parameters("SELECT * FROM foo WHERE bar = {}", &[SQLParameter::from(10)]).unwrap();
-        let q2 = apply_parameters("SELECT * FROM foo WHERE bar = {} AND baz = {}", &[SQLParameter::from(1), SQLParameter::from(2)]).unwrap();
-        let q3 = apply_parameters("SELECT * FROM foo WHERE bar = {} AND baz = {}", &[SQLParameter::from(1), SQLParameter::from("foo")]).unwrap();
+        let q1 = apply_parameters("SELECT * FROM foo WHERE bar = {}", vec![to_sqlparameter(10)]);
+        let q2 = apply_parameters("SELECT * FROM foo WHERE bar = {} AND baz = {}", vec![to_sqlparameter(1), to_sqlparameter(2)]);
+        let q3 = apply_parameters("SELECT * FROM foo WHERE bar = {} AND baz = {}", vec![to_sqlparameter(1), to_sqlparameter("foo")]);
+        let q4 = apply_parameters("INSERT INTO foo VALUES ({}), ({})", vec![to_sqlparameter(1), to_sqlparameter(2)]);
 
-        assert_eq!(q1, String::from("SELECT * FROM foo WHERE bar = (10)"));
-        assert_eq!(q2, String::from("SELECT * FROM foo WHERE bar = (1) AND baz = (2)"));
-        assert_eq!(q3, String::from("SELECT * FROM foo WHERE bar = (1) AND baz = 'foo'"));
+        assert_eq!(q1, String::from("SELECT * FROM foo WHERE bar = 10"));
+        assert_eq!(q2, String::from("SELECT * FROM foo WHERE bar = 1 AND baz = 2"));
+        assert_eq!(q3, String::from("SELECT * FROM foo WHERE bar = 1 AND baz = 'foo'"));
+        assert_eq!(q4, String::from("INSERT INTO foo VALUES (1), (2)"));
     }
 }

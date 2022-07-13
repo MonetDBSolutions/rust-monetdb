@@ -54,7 +54,7 @@ impl Connection {
     }
 
     pub fn execute(&mut self, query: &str, params: Vec<monetizer::SQLParameter>) -> Result<u64> {
-        let escaped_query = monetizer::apply_parameters(query, params).unwrap();
+        let escaped_query = monetizer::apply_parameters(query, params);
         let command = String::from("s") + &escaped_query + "\n;";
         let resp = self.connection.cmd(&command[..])?;
 
