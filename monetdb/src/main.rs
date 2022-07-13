@@ -12,7 +12,8 @@ extern crate env_logger;
 //use log::LogLevel;
 
 // use monetdb_rust::mapi::*;
-use monetdb::*;
+use monetdb::connection::Connection;
+// use monetdb::*;
 
 fn main() {
     env_logger::init().unwrap();
