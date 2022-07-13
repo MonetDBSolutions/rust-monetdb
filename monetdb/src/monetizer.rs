@@ -10,11 +10,54 @@ impl From<&str> for SQLParameters {
     }
 }
 
-impl From<i32> for SQLParameters {
-    fn from(input: i32) -> Self {
-        SQLParameters { value: format!("({})", input.to_string()) }
+impl From<i8> for SQLParameters {
+    fn from(input: i8) -> Self {
+        SQLParameters { value: int_to_string(input) }
     }
 }
+
+impl From<u8> for SQLParameters {
+    fn from(input: u8) -> Self {
+        SQLParameters { value: int_to_string(input) }
+    }
+}
+
+impl From<i16> for SQLParameters {
+    fn from(input: i16) -> Self {
+        SQLParameters { value: int_to_string(input) }
+    }
+}
+
+impl From<u16> for SQLParameters {
+    fn from(input: u16) -> Self {
+        SQLParameters { value: int_to_string(input) }
+    }
+}
+
+impl From<i32> for SQLParameters {
+    fn from(input: i32) -> Self {
+        SQLParameters { value: int_to_string(input) }
+    }
+}
+
+impl From<u32> for SQLParameters {
+    fn from(input: u32) -> Self {
+        SQLParameters { value: int_to_string(input) }
+    }
+}
+
+impl From<i64> for SQLParameters {
+    fn from(input: i64) -> Self {
+        SQLParameters { value: int_to_string(input) }
+    }
+}
+
+impl From<u64> for SQLParameters {
+    fn from(input: u64) -> Self {
+        SQLParameters { value: int_to_string(input) }
+    }
+}
+
 
 impl fmt::Display for SQLParameters {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -44,6 +87,10 @@ pub fn apply_parameters(query: &str, parameters: &[SQLParameters]) -> Option<Str
     let out = result.iter().map(|x| x.to_owned()).collect::<String>();
 
     Some(out)
+}
+
+fn int_to_string<T: fmt::Display>(arg: T) -> String {
+    arg.to_string()
 }
 
 #[cfg(test)]
