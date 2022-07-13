@@ -65,7 +65,11 @@ impl fmt::Display for SQLParameter {
     }
 } 
 
-pub fn apply_parameters(query: &str, parameters: &[SQLParameter]) -> Option<String> {
+pub fn to_sqlparameter<T: Into<SQLParameter>>(arg: T) -> SQLParameter {
+    arg.into()
+}
+
+pub fn apply_parameters(query: &str, parameters: Vec<SQLParameter>) -> Option<String> {
     if parameters.is_empty() {
         return Some(query.to_string());
     }
