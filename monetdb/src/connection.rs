@@ -3,13 +3,14 @@ use std::result;
 use url::Url;
 
 use mapi::errors::MonetDBError;
+use mapi::mapi::{MapiConnection, MapiLanguage, MapiConnectionParams};
 
 pub type Result<T> = result::Result<T, MonetDBError>;
 
 /// This implements the connection to a MonetDB database
 pub struct Connection {
     _server_url: String,
-    connection: mapi::MapiConnection,
+    connection: MapiConnection,
 }
 
 impl Connection {
@@ -25,21 +26,21 @@ impl Connection {
 
         // Remove the initial '/'
         let db = parsed.path().get(1..).unwrap();
-        let mapi_params = mapi::MapiConnectionParams::new(
+        let mapi_params = MapiConnectionParams::new(
             db,
             parsed.username(),
             parsed.password(),
-            Some(mapi::MapiLanguage::Sql),
+            Some(MapiLanguage::Sql),
             parsed.host_str(),
             parsed.port(),
         );
         Ok(Connection {
             _server_url: String::from(url),
-            connection: mapi::MapiConnection::connect(mapi_params)?,
+            connection: MapiConnection::connect(mapi_params)?,
         })
     }
 
-    pub fn get_mapi_connection(&mut self) -> &mut mapi::MapiConnection {
+    pub fn get_mapi_connection(&mut self) -> &mut MapiConnection {
         &mut self.connection
     }
 
