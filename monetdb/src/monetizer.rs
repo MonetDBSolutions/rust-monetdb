@@ -69,9 +69,9 @@ pub fn to_sqlparameter<T: Into<SQLParameter>>(arg: T) -> SQLParameter {
     arg.into()
 }
 
-pub fn apply_parameters(query: &str, parameters: Vec<SQLParameter>) -> Option<String> {
+pub fn apply_parameters(query: &str, parameters: Vec<SQLParameter>) -> String {
     if parameters.is_empty() {
-        return Some(query.to_string());
+        return query.to_string();
     }
 
     let split = query.split_inclusive("{}").collect::<Vec<&str>>();
@@ -90,7 +90,7 @@ pub fn apply_parameters(query: &str, parameters: Vec<SQLParameter>) -> Option<St
 
     let out = result.iter().map(|x| x.to_owned()).collect::<String>();
 
-    Some(out)
+    out
 }
 
 fn int_to_string<T: fmt::Display>(arg: T) -> String {
