@@ -123,8 +123,6 @@ impl MapiConnection {
             None => Some(format!("localhost:{}", port)),
         };
 
-        let socket = Path::new(&socket_path);
-
         let lang = params.language.unwrap_or(MapiLanguage::Sql);
 
         let socket = match hostname.clone() {
@@ -133,7 +131,7 @@ impl MapiConnection {
             None => {
 
                     let sbuf = [b'0'; 1];
-                    let mut c = UnixStream::connect(socket)?;
+                    let mut c = UnixStream::connect(Path::new(&socket_path))?;
                     // We need to send b'0' to initialize the connection
                     if lang != MapiLanguage::Control {
                         c.write_all(&sbuf).unwrap();
