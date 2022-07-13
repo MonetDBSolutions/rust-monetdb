@@ -16,6 +16,7 @@ use std::net::Shutdown;
 use std::net::TcpStream;
 #[cfg(target_family = "unix")]
 use std::os::unix::net::UnixStream;
+#[cfg(target_family = "unix")]
 use std::path::Path;
 use std::rc::Rc;
 use std::result;
@@ -106,15 +107,25 @@ impl MapiConnection {
     pub fn connect(params: MapiConnectionParams) -> Result<MapiConnection> {
         let port = params.port.unwrap_or(50000);
 
+        #[cfg(target_family = "unix")]
         let mut socket_path =
             params
             .unix_socket
             .unwrap_or_else(|| format!("/tmp/.s.monetdb.{}", port));
 
         let hostname = match params.hostname {
+            #[cfg(target_family = "unix")]
             Some(h) => {
                 if h.starts_with('/') {
                     socket_path = format!("{}/.s.monetdb.{}", h, port);
+                    None
+                } else {
+                    Some(format!("{}:{}", h, port))
+                }
+            }
+            #[cfg(not(target_family = "unix"))]
+            Some(h) => {
+                if h.starts_with('/') {
                     None
                 } else {
                     Some(format!("{}:{}", h, port))
