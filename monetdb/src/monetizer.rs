@@ -79,13 +79,16 @@ pub fn apply_parameters(query: &str, parameters: Vec<SQLParameter>) -> String {
     let mut result: Vec<String> = Vec::new();
 
     for (i, s) in split.iter().enumerate() {
-        let mut temp = String::new();
 
         if s.contains("{}") {
-           temp = s.replace("{}", &format!("{}", parameters[i]));
+            let temp = s.replace("{}", &format!("{}", parameters[i]));
+            result.push(temp);
+        }
+        else {
+            result.push(s.to_string());
         }
 
-        result.push(temp);
+
     }
 
     let out = result.iter().map(|x| x.to_owned()).collect::<String>();
