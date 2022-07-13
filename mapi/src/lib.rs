@@ -129,8 +129,9 @@ impl MapiConnection {
 
         let socket = match hostname.clone() {
             Some(h) => MapiSocket::Tcp(TcpStream::connect(h)?),
+            #[cfg(target_family = "unix")]
             None => {
-                if cfg!(target_family = "unix") {
+
                     let sbuf = [b'0'; 1];
                     let mut c = UnixStream::connect(socket)?;
                     // We need to send b'0' to initialize the connection
@@ -138,10 +139,10 @@ impl MapiConnection {
                         c.write_all(&sbuf).unwrap();
                     }
                     MapiSocket::Unix(c)
-                }
-                else {
-                    return Err(MapiError::ConnectionError("Hostname must be specified".to_string()));
-                }
+            }
+            #[cfg(not(target_family = "unix"))]
+            None => {
+                return Err(MapiError::ConnectionError("Hostname must be specified".to_string()));
             }
         };
         let mut connection = MapiConnection {
