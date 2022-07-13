@@ -14,7 +14,9 @@ use std::io::Read;
 use std::io::Write;
 use std::net::Shutdown;
 use std::net::TcpStream;
+#[cfg(target_family = "unix")]
 use std::os::unix::net::UnixStream;
+#[cfg(target_family = "unix")]
 use std::path::Path;
 use std::rc::Rc;
 use std::result;
@@ -105,14 +107,25 @@ impl MapiConnection {
     pub fn connect(params: MapiConnectionParams) -> Result<MapiConnection> {
         let port = params.port.unwrap_or(50000);
 
-        let mut socket = params
+        #[cfg(target_family = "unix")]
+        let mut socket_path =
+            params
             .unix_socket
             .unwrap_or_else(|| format!("/tmp/.s.monetdb.{}", port));
 
         let hostname = match params.hostname {
+            #[cfg(target_family = "unix")]
             Some(h) => {
                 if h.starts_with('/') {
-                    socket = format!("{}/.s.monetdb.{}", h, port);
+                    socket_path = format!("{}/.s.monetdb.{}", h, port);
+                    None
+                } else {
+                    Some(format!("{}:{}", h, port))
+                }
+            }
+            #[cfg(not(target_family = "unix"))]
+            Some(h) => {
+                if h.starts_with('/') {
                     None
                 } else {
                     Some(format!("{}:{}", h, port))
@@ -121,20 +134,24 @@ impl MapiConnection {
             None => Some(format!("localhost:{}", port)),
         };
 
-        let socket = Path::new(&socket);
-
         let lang = params.language.unwrap_or(MapiLanguage::Sql);
 
         let socket = match hostname.clone() {
             Some(h) => MapiSocket::Tcp(TcpStream::connect(h)?),
+            #[cfg(target_family = "unix")]
             None => {
-                let sbuf = [b'0'; 1];
-                let mut c = UnixStream::connect(socket)?;
-                // We need to send b'0' to initialize the connection
-                if lang != MapiLanguage::Control {
-                    c.write_all(&sbuf).unwrap();
-                }
-                MapiSocket::Unix(c)
+
+                    let sbuf = [b'0'; 1];
+                    let mut c = UnixStream::connect(Path::new(&socket_path))?;
+                    // We need to send b'0' to initialize the connection
+                    if lang != MapiLanguage::Control {
+                        c.write_all(&sbuf).unwrap();
+                    }
+                    MapiSocket::Unix(c)
+            }
+            #[cfg(not(target_family = "unix"))]
+            None => {
+                return Err(MapiError::ConnectionError("Hostname must be specified".to_string()));
             }
         };
         let mut connection = MapiConnection {
@@ -513,6 +530,7 @@ where
 
 enum MapiSocket {
     Tcp(TcpStream),
+    #[cfg(target_family = "unix")]
     Unix(UnixStream),
 }
 
@@ -520,6 +538,7 @@ impl std::io::Read for MapiSocket {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match *self {
             MapiSocket::Tcp(ref mut s) => s.read(buf),
+            #[cfg(target_family = "unix")]
             MapiSocket::Unix(ref mut s) => s.read(buf),
         }
     }
@@ -529,12 +548,14 @@ impl std::io::Write for MapiSocket {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match *self {
             MapiSocket::Tcp(ref mut s) => s.write(buf),
+            #[cfg(target_family = "unix")]
             MapiSocket::Unix(ref mut s) => s.write(buf),
         }
     }
     fn flush(&mut self) -> io::Result<()> {
         match *self {
             MapiSocket::Tcp(ref mut s) => s.flush(),
+            #[cfg(target_family = "unix")]
             MapiSocket::Unix(ref mut s) => s.flush(),
         }
     }
@@ -544,6 +565,7 @@ impl MapiSocket {
     pub fn shutdown(&self, how: Shutdown) -> io::Result<()> {
         match *self {
             MapiSocket::Tcp(ref s) => s.shutdown(how),
+            #[cfg(target_family = "unix")]
             MapiSocket::Unix(ref s) => s.shutdown(how),
         }
     }
