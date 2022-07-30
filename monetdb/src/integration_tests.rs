@@ -15,8 +15,9 @@ mod tests {
         monetdb.execute("CREATE TABLE foo (i int)")?;
         let result = monetdb.execute("INSERT INTO foo VALUES (1), (2)")?;
         assert_eq!(result, 2);
-        let result = monetdb.execute("SELECT * FROM foo")?;
-        assert_eq!(result, 0); // ! Not correct. The execute function needs work.
+        let result = monetdb.query("SELECT * FROM foo")?;
+        assert_eq!(result.len(), 2); // ! Not correct. The execute function needs work.
+        assert_eq!(result, vec!["1", "2"]); // ! Not correct. The execute function needs work.
 
         Ok(())
     }

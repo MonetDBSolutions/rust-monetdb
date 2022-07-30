@@ -66,4 +66,20 @@ impl Connection {
             .unwrap();
         Ok(insertions)
     }
+
+    // TODO: this should take parameters
+    // TODO: maybe return a T that represents the type?
+    pub fn query(&mut self, query: &str) -> Result<Vec<String>> {
+        let command = String::from("s") + query + "\n;";
+        let resp = self.connection.cmd(&command[..])?;
+
+        let output = resp
+                .lines()
+                .skip(5)
+                .map(|x| x.to_string().replace(&['\t', '[', ']', ' '], ""))
+                .collect::<Vec<String>>();
+
+        Ok(output)
+    }
+
 }
