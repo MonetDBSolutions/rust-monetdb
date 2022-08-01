@@ -5,5 +5,5 @@
 // Copyright 1997 - July 2008 CWI, August 2008 - 2022 MonetDB B.V.
 //
 
-pub mod mapi;
 pub mod errors;
+pub mod mapi;

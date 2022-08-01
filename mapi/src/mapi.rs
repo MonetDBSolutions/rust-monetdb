@@ -14,7 +14,6 @@ use std::path::Path;
 use std::rc::Rc;
 use std::result;
 
-
 use crate::errors::MapiError;
 use digest::DynDigest;
 use log::debug;
@@ -100,8 +99,7 @@ impl MapiConnection {
         let port = params.port.unwrap_or(50000);
 
         #[cfg(target_family = "unix")]
-        let mut socket_path =
-            params
+        let mut socket_path = params
             .unix_socket
             .unwrap_or_else(|| format!("/tmp/.s.monetdb.{}", port));
 
@@ -132,18 +130,19 @@ impl MapiConnection {
             Some(h) => MapiSocket::Tcp(TcpStream::connect(h)?),
             #[cfg(target_family = "unix")]
             None => {
-
-                    let sbuf = [b'0'; 1];
-                    let mut c = UnixStream::connect(Path::new(&socket_path))?;
-                    // We need to send b'0' to initialize the connection
-                    if lang != MapiLanguage::Control {
-                        c.write_all(&sbuf).unwrap();
-                    }
-                    MapiSocket::Unix(c)
+                let sbuf = [b'0'; 1];
+                let mut c = UnixStream::connect(Path::new(&socket_path))?;
+                // We need to send b'0' to initialize the connection
+                if lang != MapiLanguage::Control {
+                    c.write_all(&sbuf).unwrap();
+                }
+                MapiSocket::Unix(c)
             }
             #[cfg(not(target_family = "unix"))]
             None => {
-                return Err(MapiError::ConnectionError("Hostname must be specified".to_string()));
+                return Err(MapiError::ConnectionError(
+                    "Hostname must be specified".to_string(),
+                ));
             }
         };
         let mut connection = MapiConnection {

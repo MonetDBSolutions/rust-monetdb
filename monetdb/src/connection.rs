@@ -2,9 +2,9 @@ use log::debug;
 use std::result;
 use url::Url;
 
-use mapi::errors::MonetDBError;
-use mapi::mapi::{MapiConnection, MapiLanguage, MapiConnectionParams};
 use crate::monetizer;
+use mapi::errors::MonetDBError;
+use mapi::mapi::{MapiConnection, MapiConnectionParams, MapiLanguage};
 
 pub type Result<T> = result::Result<T, MonetDBError>;
 
@@ -45,7 +45,7 @@ impl Connection {
         &mut self.connection
     }
 
-    pub fn execute(&mut self, query: &str , params: Vec<monetizer::SQLParameter>) -> Result<u64> {
+    pub fn execute(&mut self, query: &str, params: Vec<monetizer::SQLParameter>) -> Result<u64> {
         let escaped_query = monetizer::apply_parameters(query, params);
         let command = String::from("s") + &escaped_query + "\n;";
         let resp = self.connection.cmd(&command[..])?;
