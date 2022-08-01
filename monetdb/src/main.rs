@@ -12,15 +12,27 @@ extern crate env_logger;
 //use log::LogLevel;
 
 // use monetdb_rust::mapi::*;
-use monetdb::*;
+use monetdb::connection::Connection;
+use monetdb::monetizer;
 
 fn main() {
     env_logger::init().unwrap();
-    let mut c = Connection::connect("mapi://localhost:50000/rustdb").unwrap();
-    let res = c.execute("CREATE TABLE IF NOT EXISTS foo (i int)").unwrap();
+    let mut c = Connection::connect("mapi://localhost:50000/demo").unwrap();
+    let res = c
+        .execute("CREATE TABLE IF NOT EXISTS foo (i int)", vec![])
+        .unwrap();
     info!("Result = {}", res);
-    let res = c.execute("INSERT INTO foo VALUES (1), (2)").unwrap();
+    let res = c
+        .execute("INSERT INTO foo VALUES (1), (2)", vec![])
+        .unwrap();
     info!("Result = {}", res);
-    let res = c.execute("SELECT * from foo").unwrap();
+    let mut params: Vec<monetizer::SQLParameter> = vec![];
+    params.push(monetizer::to_sqlparameter(3));
+    params.push(monetizer::to_sqlparameter(4));
+    let res = c
+        .execute("INSERT INTO foo VALUES ({}), ({})", params)
+        .unwrap();
+    info!("Result = {}", res);
+    let res = c.execute("SELECT * from foo", vec![]).unwrap();
     info!("Result = {}", res);
 }
