@@ -2,63 +2,80 @@ use std::fmt;
 
 #[derive(Debug)]
 pub struct SQLParameter {
-    value: String
+    value: String,
 }
 
 impl From<&str> for SQLParameter {
     fn from(input: &str) -> Self {
-        SQLParameter { value: format!("'{}'", String::from(input).replace('\'', "''")) }
+        SQLParameter {
+            value: format!("'{}'", String::from(input).replace('\'', "''")),
+        }
     }
 }
 
 impl From<i8> for SQLParameter {
     fn from(input: i8) -> Self {
-        SQLParameter { value: int_to_string(input) }
+        SQLParameter {
+            value: int_to_string(input),
+        }
     }
 }
 
 impl From<u8> for SQLParameter {
     fn from(input: u8) -> Self {
-        SQLParameter { value: int_to_string(input) }
+        SQLParameter {
+            value: int_to_string(input),
+        }
     }
 }
 
 impl From<i16> for SQLParameter {
     fn from(input: i16) -> Self {
-        SQLParameter { value: int_to_string(input) }
+        SQLParameter {
+            value: int_to_string(input),
+        }
     }
 }
 
 impl From<u16> for SQLParameter {
     fn from(input: u16) -> Self {
-        SQLParameter { value: int_to_string(input) }
+        SQLParameter {
+            value: int_to_string(input),
+        }
     }
 }
 
 impl From<i32> for SQLParameter {
     fn from(input: i32) -> Self {
-        SQLParameter { value: int_to_string(input) }
+        SQLParameter {
+            value: int_to_string(input),
+        }
     }
 }
 
 impl From<u32> for SQLParameter {
     fn from(input: u32) -> Self {
-        SQLParameter { value: int_to_string(input) }
+        SQLParameter {
+            value: int_to_string(input),
+        }
     }
 }
 
 impl From<i64> for SQLParameter {
     fn from(input: i64) -> Self {
-        SQLParameter { value: int_to_string(input) }
+        SQLParameter {
+            value: int_to_string(input),
+        }
     }
 }
 
 impl From<u64> for SQLParameter {
     fn from(input: u64) -> Self {
-        SQLParameter { value: int_to_string(input) }
+        SQLParameter {
+            value: int_to_string(input),
+        }
     }
 }
-
 
 impl fmt::Display for SQLParameter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -80,16 +97,12 @@ pub fn apply_parameters(query: &str, parameters: Vec<SQLParameter>) -> String {
     let mut result: Vec<String> = Vec::new();
 
     for (i, s) in split.iter().enumerate() {
-
         if s.contains("{}") {
             let temp = s.replace("{}", &format!("{}", parameters[i]));
             result.push(temp);
-        }
-        else {
+        } else {
             result.push(s.to_string());
         }
-
-
     }
 
     let out = result.iter().map(|x| x.to_owned()).collect::<String>();
@@ -105,7 +118,7 @@ fn int_to_string<T: fmt::Display>(arg: T) -> String {
 mod tests {
     use super::*;
 
-   #[test]
+    #[test]
     fn ints_are_escaped_correctly() {
         let input = SQLParameter::from(10);
         let input1 = SQLParameter::from(999);
@@ -122,29 +135,58 @@ mod tests {
 
         assert_eq!(format!("{input}"), "'foo'");
         assert_eq!(format!("{input_with_ticks}"), "'''foo'''");
-        assert_eq!(format!("{input_with_loads_of_ticks}"), "'''''''foo'''''''''''");
+        assert_eq!(
+            format!("{input_with_loads_of_ticks}"),
+            "'''''''foo'''''''''''"
+        );
     }
 
     #[test]
     fn queries_are_escaped_correctly() {
-        let q1 = apply_parameters("SELECT * FROM foo WHERE bar = {}", vec![to_sqlparameter("foobar")]);
-        let q2 = apply_parameters("SELECT * FROM foo WHERE bar = {} AND baz = {}", vec![to_sqlparameter("foobar"),
-        to_sqlparameter("something cool")]);
+        let q1 = apply_parameters(
+            "SELECT * FROM foo WHERE bar = {}",
+            vec![to_sqlparameter("foobar")],
+        );
+        let q2 = apply_parameters(
+            "SELECT * FROM foo WHERE bar = {} AND baz = {}",
+            vec![to_sqlparameter("foobar"), to_sqlparameter("something cool")],
+        );
 
         assert_eq!(q1, String::from("SELECT * FROM foo WHERE bar = 'foobar'"));
-        assert_eq!(q2, String::from("SELECT * FROM foo WHERE bar = 'foobar' AND baz = 'something cool'"));
+        assert_eq!(
+            q2,
+            String::from("SELECT * FROM foo WHERE bar = 'foobar' AND baz = 'something cool'")
+        );
     }
 
     #[test]
     fn queries_with_ints_are_escaped_correctly() {
-        let q1 = apply_parameters("SELECT * FROM foo WHERE bar = {}", vec![to_sqlparameter(10)]);
-        let q2 = apply_parameters("SELECT * FROM foo WHERE bar = {} AND baz = {}", vec![to_sqlparameter(1), to_sqlparameter(2)]);
-        let q3 = apply_parameters("SELECT * FROM foo WHERE bar = {} AND baz = {}", vec![to_sqlparameter(1), to_sqlparameter("foo")]);
-        let q4 = apply_parameters("INSERT INTO foo VALUES ({}), ({})", vec![to_sqlparameter(1), to_sqlparameter(2)]);
+        let q1 = apply_parameters(
+            "SELECT * FROM foo WHERE bar = {}",
+            vec![to_sqlparameter(10)],
+        );
+        let q2 = apply_parameters(
+            "SELECT * FROM foo WHERE bar = {} AND baz = {}",
+            vec![to_sqlparameter(1), to_sqlparameter(2)],
+        );
+        let q3 = apply_parameters(
+            "SELECT * FROM foo WHERE bar = {} AND baz = {}",
+            vec![to_sqlparameter(1), to_sqlparameter("foo")],
+        );
+        let q4 = apply_parameters(
+            "INSERT INTO foo VALUES ({}), ({})",
+            vec![to_sqlparameter(1), to_sqlparameter(2)],
+        );
 
         assert_eq!(q1, String::from("SELECT * FROM foo WHERE bar = 10"));
-        assert_eq!(q2, String::from("SELECT * FROM foo WHERE bar = 1 AND baz = 2"));
-        assert_eq!(q3, String::from("SELECT * FROM foo WHERE bar = 1 AND baz = 'foo'"));
+        assert_eq!(
+            q2,
+            String::from("SELECT * FROM foo WHERE bar = 1 AND baz = 2")
+        );
+        assert_eq!(
+            q3,
+            String::from("SELECT * FROM foo WHERE bar = 1 AND baz = 'foo'")
+        );
         assert_eq!(q4, String::from("INSERT INTO foo VALUES (1), (2)"));
     }
 }
