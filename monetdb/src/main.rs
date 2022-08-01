@@ -13,7 +13,7 @@ extern crate env_logger;
 
 // use monetdb_rust::mapi::*;
 use monetdb::connection::Connection;
-use monetizer;
+use monetdb::monetizer;
 
 fn main() {
     env_logger::init().unwrap();

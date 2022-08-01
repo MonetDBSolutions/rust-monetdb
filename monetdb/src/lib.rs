@@ -6,5 +6,6 @@
 //
 
 pub mod connection;
+pub mod monetizer;
 
 mod integration_tests;
