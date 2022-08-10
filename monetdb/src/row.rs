@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum MonetType {
     Double(f32),
     Int(i32),
@@ -10,14 +10,14 @@ impl MonetType {
         match _type.as_str() {
             "double" => Some(MonetType::Double(s.parse::<f32>().unwrap())),
             "int" => Some(MonetType::Int(s.parse::<i32>().unwrap())),
-            "string" => Some(MonetType::MapiString(String::from(s))),
-            "clob" => Some(MonetType::MapiString(String::from(s))),
+            "string" => Some(MonetType::MapiString(String::from(s).replace('"', ""))),
+            "clob" => Some(MonetType::MapiString(String::from(s).replace('"', ""))),
             _ => None
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Row {
     pub value: Vec<Option<MonetType>>
 }

@@ -2,6 +2,8 @@
 #[cfg(feature = "integration")]
 mod tests {
     use crate::connection::Connection;
+    use crate::row::Row;
+    use crate::row::MonetType::{MapiString, Int };
 
     use crate::monetizer::to_sqlparameter;
     use mapi::errors::MonetDBError;
@@ -42,9 +44,8 @@ mod tests {
             vec![to_sqlparameter(2)],
         )?;
 
-        //assert_eq!(result.len(), 2); 
-        //assert_eq!(result, vec!["2", "3"]); 
-    
+        assert_eq!(result.len(), 1); 
+        assert_eq!(result, vec![Row { value: vec![Some(Int(2)), Some(Int(3))] }]); 
 
         Ok(())
     }
@@ -61,9 +62,11 @@ mod tests {
             vec![],
         )?;
 
-        //assert_eq!(result.len(), 2); 
-        //assert_eq!(result, vec!["2", "3"]); 
-    
+        assert_eq!(result.len(), 2); 
+        assert_eq!(result, vec![  
+            Row { value: vec![Some(Int(1)), Some(MapiString("foo".to_string()))] },
+            Row { value: vec![Some(Int(2)), Some(MapiString("bar".to_string()))] },
+        ]); 
 
         Ok(())
     }
