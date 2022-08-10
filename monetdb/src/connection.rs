@@ -3,6 +3,8 @@ use std::result;
 use url::Url;
 
 use crate::monetizer;
+use crate::row;
+use crate::row::MonetType;
 use mapi::errors::MonetDBError;
 use mapi::mapi::{MapiConnection, MapiConnectionParams, MapiLanguage};
 
@@ -61,26 +63,43 @@ impl Connection {
         Ok(insertions)
     }
 
-    // TODO: maybe return a T that represents the type?
-    pub fn query(&mut self, query: &str, params: Vec<monetizer::SQLParameter>) -> Result<Vec<String>> {
+    pub fn query(&mut self, query: &str, params: Vec<monetizer::SQLParameter>) -> Result<Vec<row::Row>> {
         let escaped_query = monetizer::apply_parameters(query, params);
         let command = String::from("s") + &escaped_query + "\n;";
         let resp = self.connection.cmd(&command[..])?;
 
         let response_lines = resp.lines();
 
-        let response_header = response_lines.skip(2);
-        let response_body = response_header.skip(3);
+        let response_header: Vec<String> = response_lines.clone().skip(3).map(|x| self.sanitize(x)).collect();
+        let header = self.parse_header(response_header);
+        let response_body = response_lines.clone().skip(5);
 
-        let mut output: Vec<String> = Vec::new();
+        let mut output: Vec<row::Row> = Vec::new();
 
         for line in response_body {
-            let sanitized = line.replace(&['\t', '[', ']', ' '], "");
-            let mut splitted = sanitized.split(',').map(|x| x.to_string()).collect::<Vec<String>>();
+            let sanitized = &self.sanitize(line);
+            let splitted: Vec<&str>  = sanitized.split(',').collect();
+            let mut out: Vec<Option<MonetType>> = Vec::new();
 
-            output.append(&mut splitted);
+            for (i, v) in splitted.iter().enumerate() {
+                let out_type = MonetType::parse(header.get(i).unwrap(), v.trim());
+                out.push(out_type);
+            }
+
+            output.push(row::Row { value: out } );
         }
 
         Ok(output)
+    }
+
+    #[inline]
+    fn parse_header(&self, input: Vec<String>) -> Vec<String> {
+        let header: Vec<&str> = input[0].split('#').collect();
+        header[0].split(',').map(|x| x.trim().to_string()).collect::<Vec<String>>()
+    }
+
+    #[inline]
+    fn sanitize(&self, line: &str) -> String {
+        line.replace(&['\t', '%', '[', ']', ' '], " ")
     }
 }

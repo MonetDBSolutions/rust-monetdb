@@ -7,5 +7,6 @@
 
 pub mod connection;
 pub mod monetizer;
+pub mod row;
 
 mod integration_tests;
