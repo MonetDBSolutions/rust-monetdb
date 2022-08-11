@@ -1,3 +1,5 @@
+use mapi::errors::MonetDBError;
+
 #[derive(Debug, PartialEq)]
 pub enum MonetType {
     Double(f32),
@@ -6,20 +8,20 @@ pub enum MonetType {
 }
 
 impl MonetType {
-    pub fn parse(_type: &String, s: &str) -> Option<Self> {
+    pub fn parse(_type: &String, s: &str) -> Result<Self, MonetDBError> {
         match _type.as_str() {
-            "double" => Some(MonetType::Double(s.parse::<f32>().unwrap())),
-            "int" => Some(MonetType::Int(s.parse::<i32>().unwrap())),
-            "string" => Some(MonetType::MapiString(String::from(s).replace('"', ""))),
-            "clob" => Some(MonetType::MapiString(String::from(s).replace('"', ""))),
-            _ => None
+            "double" => Ok(MonetType::Double(s.parse::<f32>().unwrap())),
+            "int" => Ok(MonetType::Int(s.parse::<i32>().unwrap())),
+            "string" => Ok(MonetType::MapiString(String::from(s).replace('"', ""))),
+            "clob" => Ok(MonetType::MapiString(String::from(s).replace('"', ""))),
+            _ => Err(MonetDBError::UnimplementedError(String::from("Unimplemented type")))
         }
     }
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Row {
-    pub value: Vec<Option<MonetType>>
+    pub value: Vec<MonetType>
 }
 
 #[cfg(test)]

@@ -43,6 +43,7 @@ impl Connection {
         })
     }
 
+    #[inline]
     pub fn get_mapi_connection(&mut self) -> &mut MapiConnection {
         &mut self.connection
     }
@@ -79,11 +80,19 @@ impl Connection {
         for line in response_body {
             let sanitized = &self.sanitize(line);
             let splitted: Vec<&str>  = sanitized.split(',').collect();
-            let mut out: Vec<Option<MonetType>> = Vec::new();
+            let mut out: Vec<MonetType> = Vec::new();
 
             for (i, v) in splitted.iter().enumerate() {
                 let out_type = MonetType::parse(header.get(i).unwrap(), v.trim());
-                out.push(out_type);
+
+                match out_type {
+                    Ok(s) => {
+                        out.push(s);
+                    }
+                    Err(e) => {
+                        return Err(e)
+                    }
+                }
             }
 
             output.push(row::Row { value: out } );

@@ -37,7 +37,7 @@ mod tests {
         let mut monetdb = Connection::connect("mapi://localhost:50000/demo")?;
         monetdb.execute("DROP TABLE IF EXISTS foo3", vec![])?;
         monetdb.execute("CREATE TABLE foo3 (i int, x int)", vec![])?;
-        let result = monetdb.execute("INSERT INTO foo3 VALUES (1, 2), (2, 3)", vec![])?;
+        let _result = monetdb.execute("INSERT INTO foo3 VALUES (1, 2), (2, 3)", vec![])?;
 
         let result = monetdb.query(
             "SELECT * FROM foo3 WHERE i = ({})",
@@ -45,7 +45,7 @@ mod tests {
         )?;
 
         assert_eq!(result.len(), 1); 
-        assert_eq!(result, vec![Row { value: vec![Some(Int(2)), Some(Int(3))] }]); 
+        assert_eq!(result, vec![Row { value: vec![Int(2), Int(3)] }]); 
 
         Ok(())
     }
@@ -55,7 +55,7 @@ mod tests {
         let mut monetdb = Connection::connect("mapi://localhost:50000/demo")?;
         monetdb.execute("DROP TABLE IF EXISTS foo4", vec![])?;
         monetdb.execute("CREATE TABLE foo4 (i int, x string)", vec![])?;
-        let result = monetdb.execute("INSERT INTO foo4 VALUES (1, 'foo'), (2, 'bar')", vec![])?;
+        let _result = monetdb.execute("INSERT INTO foo4 VALUES (1, 'foo'), (2, 'bar')", vec![])?;
 
         let result = monetdb.query(
             "SELECT * FROM foo4",
@@ -64,8 +64,8 @@ mod tests {
 
         assert_eq!(result.len(), 2); 
         assert_eq!(result, vec![  
-            Row { value: vec![Some(Int(1)), Some(MapiString("foo".to_string()))] },
-            Row { value: vec![Some(Int(2)), Some(MapiString("bar".to_string()))] },
+            Row { value: vec![Int(1), MapiString("foo".to_string())] },
+            Row { value: vec![Int(2), MapiString("bar".to_string())] },
         ]); 
 
         Ok(())
