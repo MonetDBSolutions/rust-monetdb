@@ -83,7 +83,8 @@ impl Connection {
             let mut out: Vec<MonetType> = Vec::new();
 
             for (i, v) in splitted.iter().enumerate() {
-                let out_type = MonetType::parse(header.get(i).unwrap(), v.trim());
+                let value = self.remove_first_and_last_quote(v.trim());
+                let out_type = MonetType::parse(header.get(i).unwrap(), value.trim());
 
                 match out_type {
                     Ok(s) => {
@@ -109,6 +110,22 @@ impl Connection {
 
     #[inline]
     fn sanitize(&self, line: &str) -> String {
-        line.replace(&['\t', '%', '[', ']', ' '], " ")
+        line.replace(&['\t', '%', '[', ']'], " ")
     }
+    
+    #[inline]
+    fn remove_first_and_last_quote(&self, line: &str) -> String {
+        let first_char = line.chars().take(1).last().unwrap();
+
+        if first_char == '\"' {
+            let mut x = line.to_string();
+            x.pop();
+            x.remove(0);
+            return x;
+        }
+
+        line.to_string()
+    }
+
 }
+

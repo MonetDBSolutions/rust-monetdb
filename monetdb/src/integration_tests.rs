@@ -20,7 +20,6 @@ mod tests {
         monetdb.execute("DROP TABLE IF EXISTS foo", vec![])?;
         monetdb.execute("CREATE TABLE foo (i int, x int)", vec![])?;
         let result = monetdb.execute("INSERT INTO foo VALUES (1, 2), (2, 3)", vec![])?;
-
         assert_eq!(result, 2);
         let result = monetdb.execute(
             "INSERT INTO foo VALUES ({}, {}), ({}, {})",
@@ -66,6 +65,26 @@ mod tests {
         assert_eq!(result, vec![  
             Row { value: vec![Int(1), MapiString("foo".to_string())] },
             Row { value: vec![Int(2), MapiString("bar".to_string())] },
+        ]); 
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_col_with_quotes() -> Result<(), MonetDBError> {
+        let mut monetdb = Connection::connect("mapi://localhost:50000/demo")?;
+        monetdb.execute("DROP TABLE IF EXISTS quotes", vec![])?;
+        monetdb.execute("CREATE TABLE quotes (x string)", vec![])?;
+        monetdb.execute("INSERT INTO quotes VALUES('And He said: \"Let there be Light!\"') ", vec![])?;
+
+        let result = monetdb.query(
+            "SELECT * FROM quotes",
+            vec![],
+        )?;
+
+        assert_eq!(result.len(), 1); 
+        assert_eq!(result, vec![  
+            Row { value: vec![MapiString("And He said: \\\"Let there be Light!\\\"".to_string())] },
         ]); 
 
         Ok(())
