@@ -3,8 +3,7 @@ use std::result;
 use url::Url;
 
 use crate::monetizer;
-use crate::row;
-use crate::row::MonetType;
+use crate::query_response::QueryResponse;
 use mapi::errors::MonetDBError;
 use mapi::mapi::{MapiConnection, MapiConnectionParams, MapiLanguage};
 
@@ -64,68 +63,12 @@ impl Connection {
         Ok(insertions)
     }
 
-    pub fn query(&mut self, query: &str, params: Vec<monetizer::SQLParameter>) -> Result<Vec<row::Row>> {
+    pub fn query(&mut self, query: &str, params: Vec<monetizer::SQLParameter>) -> Result<QueryResponse> {
         let escaped_query = monetizer::apply_parameters(query, params);
         let command = String::from("s") + &escaped_query + "\n;";
         let resp = self.connection.cmd(&command[..])?;
-
-        let response_lines = resp.lines();
-
-        let response_header: Vec<String> = response_lines.clone().skip(3).map(|x| self.sanitize(x)).collect();
-        let header = self.parse_header(response_header);
-        let response_body = response_lines.clone().skip(5);
-
-        let mut output: Vec<row::Row> = Vec::new();
-
-        for line in response_body {
-            let sanitized = &self.sanitize(line);
-            let splitted: Vec<&str>  = sanitized.split(',').collect();
-            let mut out: Vec<MonetType> = Vec::new();
-
-            for (i, v) in splitted.iter().enumerate() {
-                let value = self.remove_first_and_last_quote(v.trim());
-                let out_type = MonetType::parse(header.get(i).unwrap(), value.trim());
-
-                match out_type {
-                    Ok(s) => {
-                        out.push(s);
-                    }
-                    Err(e) => {
-                        return Err(e)
-                    }
-                }
-            }
-
-            output.push(row::Row { value: out } );
-        }
-
-        Ok(output)
-    }
-
-    #[inline]
-    fn parse_header(&self, input: Vec<String>) -> Vec<String> {
-        let header: Vec<&str> = input[0].split('#').collect();
-        header[0].split(',').map(|x| x.trim().to_string()).collect::<Vec<String>>()
-    }
-
-    #[inline]
-    fn sanitize(&self, line: &str) -> String {
-        line.replace(&['\t', '%', '[', ']'], " ")
-    }
     
-    #[inline]
-    fn remove_first_and_last_quote(&self, line: &str) -> String {
-        let first_char = line.chars().take(1).last().unwrap();
-
-        if first_char == '\"' {
-            let mut x = line.to_string();
-            x.pop();
-            x.remove(0);
-            return x;
-        }
-
-        line.to_string()
+        QueryResponse::new(resp)
     }
-
 }
 

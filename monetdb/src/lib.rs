@@ -8,5 +8,6 @@
 pub mod connection;
 pub mod monetizer;
 pub mod row;
+pub mod query_response;
 
 mod integration_tests;

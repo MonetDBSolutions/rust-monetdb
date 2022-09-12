@@ -14,9 +14,7 @@ impl MonetType {
         match _type.as_str() {
             "double" => Ok(MonetType::Double(s.parse::<f32>().unwrap())),
             "int" => Ok(MonetType::Int(s.parse::<i32>().unwrap())),
-            "string" => {
-                Ok(MonetType::MapiString(String::from(s)))
-            },
+            "string" => Ok(MonetType::MapiString(String::from(s))),
             "clob" => Ok(MonetType::MapiString(String::from(s))),
             _ => Err(MonetDBError::UnimplementedError(String::from("Unimplemented type")))
         }
@@ -90,6 +88,7 @@ mod tests {
         let input4 = MonetType::parse(&String::from("string"), "'''foo bar with a lot of backticks'''").unwrap();
         let input5 = MonetType::parse(&String::from("string"), "\"Do you like quotes?\"").unwrap();
         let input6 = MonetType::parse(&String::from("string"), "'And he said: \"Let there be light!\"'").unwrap();
+        let input7 = MonetType::parse(&String::from("string"), "Very tricky string: [%]").unwrap();
 
         assert_eq!(input, MonetType::MapiString(String::from("foo")));
         assert_eq!(input1, MonetType::MapiString(String::from("bar")));
@@ -98,6 +97,7 @@ mod tests {
         assert_eq!(input4, MonetType::MapiString(String::from("'''foo bar with a lot of backticks'''")));
         assert_eq!(input5, MonetType::MapiString(String::from("\"Do you like quotes?\"")));
         assert_eq!(input6, MonetType::MapiString(String::from("'And he said: \"Let there be light!\"'")));
+        assert_eq!(input7, MonetType::MapiString(String::from("Very tricky string: [%]")));
     }
 
 }

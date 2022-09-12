@@ -43,8 +43,8 @@ mod tests {
             vec![to_sqlparameter(2)],
         )?;
 
-        assert_eq!(result.len(), 1); 
-        assert_eq!(result, vec![Row { value: vec![Int(2), Int(3)] }]); 
+        assert_eq!(result.result.len(), 1); 
+        assert_eq!(result.result, vec![Row { value: vec![Int(2), Int(3)] }]); 
 
         Ok(())
     }
@@ -61,8 +61,8 @@ mod tests {
             vec![],
         )?;
 
-        assert_eq!(result.len(), 2); 
-        assert_eq!(result, vec![  
+        assert_eq!(result.result.len(), 2); 
+        assert_eq!(result.result, vec![  
             Row { value: vec![Int(1), MapiString("foo".to_string())] },
             Row { value: vec![Int(2), MapiString("bar".to_string())] },
         ]); 
@@ -76,15 +76,17 @@ mod tests {
         monetdb.execute("DROP TABLE IF EXISTS quotes", vec![])?;
         monetdb.execute("CREATE TABLE quotes (x string)", vec![])?;
         monetdb.execute("INSERT INTO quotes VALUES('And He said: \"Let there be Light!\"') ", vec![])?;
+        monetdb.execute("INSERT INTO quotes VALUES('Very hard string: [%]') ", vec![])?;
 
         let result = monetdb.query(
             "SELECT * FROM quotes",
             vec![],
         )?;
 
-        assert_eq!(result.len(), 1); 
-        assert_eq!(result, vec![  
+        assert_eq!(result.result.len(), 2); 
+        assert_eq!(result.result, vec![  
             Row { value: vec![MapiString("And He said: \\\"Let there be Light!\\\"".to_string())] },
+            Row { value: vec![MapiString("Very hard string: [%]".to_string())] },
         ]); 
 
         Ok(())
