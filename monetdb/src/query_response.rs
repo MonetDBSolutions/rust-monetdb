@@ -33,16 +33,16 @@ pub struct QueryMetadata {
 
 impl QueryResponse {
     pub fn new(resp: String) -> Result<QueryResponse> {
-        let response_lines: Vec<String> = resp.lines().map(String::from).collect();
+        let mut response_lines = resp.lines();
 
-        let metadata_header = match response_lines.get(0) {
+        let metadata_header = match response_lines.next() {
             Some(s) => s,
             None => return Err(MonetDBError::UnimplementedError(String::from("Received no metadata")))
         };
 
         let metadata = QueryResponse::parse_metadata_header(&metadata_header);
 
-        let result = match QueryResponse::parse_response_output(resp) {
+        let result = match QueryResponse::parse_response_output(response_lines) {
             Ok(s) => s,
             Err(e) => return Err(e)
         };
@@ -53,12 +53,10 @@ impl QueryResponse {
         })
     }
     
-    fn parse_response_output(resp: String) -> Result<Vec<Row>> {
-            let response_lines = resp.lines();
-
-            let response_header: Vec<String> = response_lines.clone().skip(3).map(String::from).collect();
+    fn parse_response_output(response_lines: std::str::Lines) -> Result<Vec<Row>> {
+            let response_header: Vec<String> = response_lines.clone().skip(2).map(String::from).collect();
             let header = QueryResponse::parse_header(response_header);
-            let response_body = response_lines.clone().skip(5);
+            let response_body = response_lines.clone().skip(4);
 
             let mut output: Vec<Row> = Vec::new();
 
