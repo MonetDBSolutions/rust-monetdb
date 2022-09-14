@@ -2,6 +2,8 @@
 #[cfg(feature = "integration")]
 mod tests {
     use crate::connection::Connection;
+    use crate::row::Row;
+    use crate::row::MonetType::{MapiString, Int };
 
     use crate::monetizer::to_sqlparameter;
     use mapi::errors::MonetDBError;
@@ -16,18 +18,78 @@ mod tests {
     fn create_insert_select_test() -> Result<(), MonetDBError> {
         let mut monetdb = Connection::connect("mapi://localhost:50000/demo")?;
         monetdb.execute("DROP TABLE IF EXISTS foo", vec![])?;
-        monetdb.execute("CREATE TABLE foo (i int)", vec![])?;
-        let result = monetdb.execute("INSERT INTO foo VALUES (1), (2)", vec![])?;
-
+        monetdb.execute("CREATE TABLE foo (i int, x int)", vec![])?;
+        let result = monetdb.execute("INSERT INTO foo VALUES (1, 2), (2, 3)", vec![])?;
         assert_eq!(result, 2);
         let result = monetdb.execute(
-            "INSERT INTO foo VALUES ({}), ({})",
-            vec![to_sqlparameter(1), to_sqlparameter(2)],
+            "INSERT INTO foo VALUES ({}, {}), ({}, {})",
+            vec![to_sqlparameter(1), to_sqlparameter(2), to_sqlparameter(2), to_sqlparameter(4)],
         )?;
+
         assert_eq!(result, 2);
-        let result = monetdb.execute("SELECT * FROM foo", vec![])?;
-        assert_eq!(result, 0); // ! Not correct. The execute function needs work.
 
         Ok(())
     }
+
+    #[test]
+    fn query_row_test() -> Result<(), MonetDBError> {
+        let mut monetdb = Connection::connect("mapi://localhost:50000/demo")?;
+        monetdb.execute("DROP TABLE IF EXISTS foo3", vec![])?;
+        monetdb.execute("CREATE TABLE foo3 (i int, x int)", vec![])?;
+        let _result = monetdb.execute("INSERT INTO foo3 VALUES (1, 2), (2, 3)", vec![])?;
+
+        let result = monetdb.query(
+            "SELECT * FROM foo3 WHERE i = ({})",
+            vec![to_sqlparameter(2)],
+        )?;
+
+        assert_eq!(result.result.len(), 1); 
+        assert_eq!(result.result, vec![Row { value: vec![Int(2), Int(3)] }]); 
+
+        Ok(())
+    }
+
+    #[test]
+    fn query_row_test_multiple_cols() -> Result<(), MonetDBError> {
+        let mut monetdb = Connection::connect("mapi://localhost:50000/demo")?;
+        monetdb.execute("DROP TABLE IF EXISTS foo4", vec![])?;
+        monetdb.execute("CREATE TABLE foo4 (i int, x string)", vec![])?;
+        let _result = monetdb.execute("INSERT INTO foo4 VALUES (1, 'foo'), (2, 'bar')", vec![])?;
+
+        let result = monetdb.query(
+            "SELECT * FROM foo4",
+            vec![],
+        )?;
+
+        assert_eq!(result.result.len(), 2); 
+        assert_eq!(result.result, vec![  
+            Row { value: vec![Int(1), MapiString("foo".to_string())] },
+            Row { value: vec![Int(2), MapiString("bar".to_string())] },
+        ]); 
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_col_with_quotes() -> Result<(), MonetDBError> {
+        let mut monetdb = Connection::connect("mapi://localhost:50000/demo")?;
+        monetdb.execute("DROP TABLE IF EXISTS quotes", vec![])?;
+        monetdb.execute("CREATE TABLE quotes (x string)", vec![])?;
+        monetdb.execute("INSERT INTO quotes VALUES('And He said: \"Let there be Light!\"') ", vec![])?;
+        monetdb.execute("INSERT INTO quotes VALUES('Very hard string: [%]') ", vec![])?;
+
+        let result = monetdb.query(
+            "SELECT * FROM quotes",
+            vec![],
+        )?;
+
+        assert_eq!(result.result.len(), 2); 
+        assert_eq!(result.result, vec![  
+            Row { value: vec![MapiString("And He said: \\\"Let there be Light!\\\"".to_string())] },
+            Row { value: vec![MapiString("Very hard string: [%]".to_string())] },
+        ]); 
+
+        Ok(())
+    }
+
 }

@@ -3,6 +3,7 @@ use std::result;
 use url::Url;
 
 use crate::monetizer;
+use crate::query_response::QueryResponse;
 use mapi::errors::MonetDBError;
 use mapi::mapi::{MapiConnection, MapiConnectionParams, MapiLanguage};
 
@@ -41,6 +42,7 @@ impl Connection {
         })
     }
 
+    #[inline]
     pub fn get_mapi_connection(&mut self) -> &mut MapiConnection {
         &mut self.connection
     }
@@ -60,4 +62,13 @@ impl Connection {
             .unwrap();
         Ok(insertions)
     }
+
+    pub fn query(&mut self, query: &str, params: Vec<monetizer::SQLParameter>) -> Result<QueryResponse> {
+        let escaped_query = monetizer::apply_parameters(query, params);
+        let command = String::from("s") + &escaped_query + "\n;";
+        let resp = self.connection.cmd(&command[..])?;
+    
+        QueryResponse::new(resp)
+    }
 }
+
