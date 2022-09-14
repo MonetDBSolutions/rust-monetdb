@@ -14,6 +14,12 @@ pub type Result<T> = result::Result<T, MonetDBError>;
 
 #[derive(PartialEq, Debug)]
 pub struct QueryResponse {
+    pub metadata: QueryMetadata,
+    pub result: Vec<Row>
+}
+
+#[derive(PartialEq, Debug)]
+pub struct QueryMetadata {
     pub response_type: ResponseType,
     pub result_id: i32,
     pub number_of_rows: i32,
@@ -23,42 +29,34 @@ pub struct QueryResponse {
     pub query_time: i32,
     pub mal_optimizer_time: i32,
     pub sql_optimizer_time: i32,
-    pub result: Vec<Row>
 }
 
 impl QueryResponse {
     pub fn new(resp: String) -> Result<QueryResponse> {
-        let response_lines: Vec<&str> = resp.lines().collect();
+        let response_lines: Vec<String> = resp.lines().map(String::from).collect();
+
         let metadata_header = match response_lines.get(0) {
             Some(s) => s,
             None => return Err(MonetDBError::UnimplementedError(String::from("Received no metadata")))
         };
 
-        let metadata_header = QueryResponse::parse_metadata_header(&metadata_header);
+        let metadata = QueryResponse::parse_metadata_header(&metadata_header);
 
-        let result_rows = match QueryResponse::parse_response_output(resp) {
+        let result = match QueryResponse::parse_response_output(resp) {
             Ok(s) => s,
             Err(e) => return Err(e)
         };
 
         Ok(QueryResponse {
-            response_type: metadata_header.0,
-            result_id: metadata_header.1,
-            number_of_rows: metadata_header.2,
-            column_count: metadata_header.3,
-            number_of_rows_in_message: metadata_header.4,
-            query_id: metadata_header.5,
-            query_time: metadata_header.6,
-            mal_optimizer_time: metadata_header.7,
-            sql_optimizer_time: metadata_header.8,
-            result: result_rows
+            metadata,
+            result
         })
     }
     
     fn parse_response_output(resp: String) -> Result<Vec<Row>> {
             let response_lines = resp.lines();
 
-            let response_header: Vec<String> = response_lines.clone().skip(3).map(|x| QueryResponse::sanitize(x)).collect();
+            let response_header: Vec<String> = response_lines.clone().skip(3).map(String::from).collect();
             let header = QueryResponse::parse_header(response_header);
             let response_body = response_lines.clone().skip(5);
 
@@ -90,7 +88,7 @@ impl QueryResponse {
         }
 
         #[inline]
-        fn parse_metadata_header(input: &str) -> (ResponseType, i32, i32, i32, i32, i32, i32, i32, i32) {
+        fn parse_metadata_header(input: &str) -> QueryMetadata {
             let header = input.to_string(); 
             let splitted: Vec<&str> = header.split(' ').collect();
 
@@ -99,28 +97,32 @@ impl QueryResponse {
                 _ => ResponseType::Data
             };
 
-            (
+            QueryMetadata {
                 response_type,
-                splitted[1].parse().unwrap(),
-                splitted[2].parse().unwrap(),
-                splitted[3].parse().unwrap(),
-                splitted[4].parse().unwrap(),
-                splitted[5].parse().unwrap(),
-                splitted[6].parse().unwrap(),
-                splitted[7].parse().unwrap(),
-                splitted[8].parse().unwrap(),
-            )
+                result_id: splitted[1].parse().unwrap(),
+                number_of_rows: splitted[2].parse().unwrap(),
+                column_count: splitted[3].parse().unwrap(),
+                number_of_rows_in_message: splitted[4].parse().unwrap(),
+                query_id: splitted[5].parse().unwrap(),
+                query_time: splitted[6].parse().unwrap(),
+                mal_optimizer_time: splitted[7].parse().unwrap(),
+                sql_optimizer_time: splitted[8].parse().unwrap(),
+            }
         }
 
         #[inline]
         fn parse_header(input: Vec<String>) -> Vec<String> {
             let header: Vec<&str> = input[0].split('#').collect();
-            header[0].split(',').map(|x| x.trim().to_string()).collect::<Vec<String>>()
+            header[0].split(',').map(|x| x.replace('%', " ").trim().to_string()).collect::<Vec<String>>()
         }
 
         #[inline]
         fn sanitize(line: &str) -> String {
-            line.replace(&['\t', '%', '[', ']'], " ")
+            let mut temp = String::from(line);
+            temp.pop();
+            temp.remove(0);
+
+            temp
         }
         
         #[inline]
@@ -155,9 +157,7 @@ mod tests {
 [ 1,	"foo"	]
 [ 2,	"bar"	]"###.to_string();
 
-            let actual = QueryResponse::new(response).unwrap();
-
-            let desired = QueryResponse {
+            let metadata = QueryMetadata {
                  response_type: ResponseType::Data,
                  result_id: 0,
                  number_of_rows: 2,
@@ -167,6 +167,12 @@ mod tests {
                  query_time: 1918,
                  mal_optimizer_time: 479,
                  sql_optimizer_time: 178,
+            };
+
+            let actual = QueryResponse::new(response).unwrap();
+
+            let desired = QueryResponse {
+                 metadata,
                  result: vec![
                     Row { value: vec![Int(1), MapiString("foo".to_string())] },
                     Row { value: vec![Int(2), MapiString("bar".to_string())] },
@@ -186,10 +192,7 @@ mod tests {
 [ "And He said: \"Let there be Light!\""	]
 [ "Very hard string: [%]"	]"###.to_string();
 
-
-            let actual = QueryResponse::new(response).unwrap();
-
-            let desired = QueryResponse {
+            let metadata = QueryMetadata {
                  response_type: ResponseType::Data,
                  result_id: 0,
                  number_of_rows: 2,
@@ -199,6 +202,12 @@ mod tests {
                  query_time: 896,
                  mal_optimizer_time: 1242,
                  sql_optimizer_time: 55,
+           };
+
+            let actual = QueryResponse::new(response).unwrap();
+
+            let desired = QueryResponse {
+                 metadata,
                  result: vec![
                     Row { value: vec![MapiString("And He said: \\\"Let there be Light!\\\"".to_string())] },
                     Row { value: vec![MapiString("Very hard string: [%]".to_string())] },
