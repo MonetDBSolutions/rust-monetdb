@@ -42,6 +42,9 @@ impl QueryResponse {
 
         let metadata = QueryResponse::parse_metadata_header(&metadata_header);
 
+        response_lines.next();
+        response_lines.next();
+
         let result = match QueryResponse::parse_response_output(response_lines) {
             Ok(s) => s,
             Err(e) => return Err(e)
@@ -53,10 +56,13 @@ impl QueryResponse {
         })
     }
     
-    fn parse_response_output(response_lines: std::str::Lines) -> Result<Vec<Row>> {
-            let response_header: Vec<String> = response_lines.clone().skip(2).map(String::from).collect();
+    fn parse_response_output(mut response_lines: std::str::Lines) -> Result<Vec<Row>> {
+            let response_header: String = response_lines.next().unwrap().into();
             let header = QueryResponse::parse_header(response_header);
-            let response_body = response_lines.clone().skip(4);
+
+            response_lines.next();
+
+            let response_body: Vec<&str> = response_lines.collect();
 
             let mut output: Vec<Row> = Vec::new();
 
@@ -109,8 +115,8 @@ impl QueryResponse {
         }
 
         #[inline]
-        fn parse_header(input: Vec<String>) -> Vec<String> {
-            let header: Vec<&str> = input[0].split('#').collect();
+        fn parse_header(input: String) -> Vec<String> {
+            let header: Vec<&str> = input.split('#').collect();
             header[0].split(',').map(|x| x.replace('%', " ").trim().to_string()).collect::<Vec<String>>()
         }
 
